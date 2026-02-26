@@ -1,3 +1,4 @@
+/* REDESIGN: updated for ElbaIntimo UI refresh — kept props unchanged */
 import { Head } from '@inertiajs/react';
 
 import AppearanceTabs from '@/components/appearance-tabs';

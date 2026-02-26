@@ -1,3 +1,4 @@
+/* REDESIGN: updated for ElbaIntimo UI refresh — kept props unchanged */
 import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
 import { NavUser } from '@/components/nav-user';
@@ -11,9 +12,11 @@ import {
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { dashboard } from '@/routes';
+import { index as products } from '@/routes/products';
+import { index as clients } from '@/routes/clients';
 import { type NavItem } from '@/types';
 import { Link } from '@inertiajs/react';
-import { BookOpen, Folder, LayoutGrid } from 'lucide-react';
+import { LayoutGrid, Package, Users, FolderTree, Building2, FileText, Settings } from 'lucide-react';
 import AppLogo from './app-logo';
 
 const mainNavItems: NavItem[] = [
@@ -22,25 +25,45 @@ const mainNavItems: NavItem[] = [
         href: dashboard(),
         icon: LayoutGrid,
     },
+    {
+        title: 'Categories',
+        href: '/categories',
+        icon: FolderTree,
+    },
+    {
+        title: 'Products',
+        href: products(),
+        icon: Package,
+    },
+    {
+        title: 'Brands',
+        href: '/brands',
+        icon: Building2,
+    },
+    {
+        title: 'Commandes',
+        href: '/commands',
+        icon: FileText,
+    },
+    {
+        title: 'Clients',
+        href: clients(),
+        icon: Users,
+    },
 ];
 
 const footerNavItems: NavItem[] = [
     {
-        title: 'Repository',
-        href: 'https://github.com/laravel/react-starter-kit',
-        icon: Folder,
-    },
-    {
-        title: 'Documentation',
-        href: 'https://laravel.com/docs/starter-kits#react',
-        icon: BookOpen,
+        title: 'Settings',
+        href: '/settings/profile',
+        icon: Settings,
     },
 ];
 
 export function AppSidebar() {
     return (
-        <Sidebar collapsible="icon" variant="inset">
-            <SidebarHeader>
+        <Sidebar collapsible="icon" variant="inset" className="[--sidebar-width:16rem]">
+            <SidebarHeader className="px-4 py-3">
                 <SidebarMenu>
                     <SidebarMenuItem>
                         <SidebarMenuButton size="lg" asChild>
@@ -52,11 +75,11 @@ export function AppSidebar() {
                 </SidebarMenu>
             </SidebarHeader>
 
-            <SidebarContent>
+            <SidebarContent className="px-3 py-2">
                 <NavMain items={mainNavItems} />
             </SidebarContent>
 
-            <SidebarFooter>
+            <SidebarFooter className="px-3 py-3">
                 <NavFooter items={footerNavItems} className="mt-auto" />
                 <NavUser />
             </SidebarFooter>

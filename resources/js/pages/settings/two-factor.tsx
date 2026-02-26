@@ -1,3 +1,4 @@
+/* REDESIGN: updated for ElbaIntimo UI refresh — kept props unchanged */
 import HeadingSmall from '@/components/heading-small';
 import TwoFactorRecoveryCodes from '@/components/two-factor-recovery-codes';
 import TwoFactorSetupModal from '@/components/two-factor-setup-modal';

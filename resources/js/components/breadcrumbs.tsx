@@ -1,3 +1,4 @@
+/* REDESIGN: updated for ElbaIntimo UI refresh — kept props unchanged */
 import {
     Breadcrumb,
     BreadcrumbItem,
@@ -19,7 +20,7 @@ export function Breadcrumbs({
         <>
             {breadcrumbs.length > 0 && (
                 <Breadcrumb>
-                    <BreadcrumbList>
+                    <BreadcrumbList className="text-muted text-sm">
                         {breadcrumbs.map((item, index) => {
                             const isLast = index === breadcrumbs.length - 1;
                             return (

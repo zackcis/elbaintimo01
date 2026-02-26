@@ -1,3 +1,4 @@
+/* REDESIGN: updated for ElbaIntimo UI refresh — kept props unchanged */
 import { login } from '@/routes';
 import { store } from '@/routes/register';
 import { Form, Head } from '@inertiajs/react';

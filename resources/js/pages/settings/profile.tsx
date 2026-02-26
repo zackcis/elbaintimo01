@@ -1,3 +1,4 @@
+/* REDESIGN: updated for ElbaIntimo UI refresh — kept props unchanged */
 import ProfileController from '@/actions/App/Http/Controllers/Settings/ProfileController';
 import { send } from '@/routes/verification';
 import { type BreadcrumbItem, type SharedData } from '@/types';

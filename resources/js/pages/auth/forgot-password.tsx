@@ -1,3 +1,4 @@
+/* REDESIGN: updated for ElbaIntimo UI refresh — kept props unchanged */
 // Components
 import { login } from '@/routes';
 import { email } from '@/routes/password';
