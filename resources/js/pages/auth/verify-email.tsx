@@ -1,4 +1,4 @@
-/* REDESIGN: updated for ElbaIntimo UI refresh — kept props unchanged */
+/* REDESIGN: updated for HARIMI UI refresh — kept props unchanged */
 // Components
 import TextLink from '@/components/text-link';
 import { Button } from '@/components/ui/button';

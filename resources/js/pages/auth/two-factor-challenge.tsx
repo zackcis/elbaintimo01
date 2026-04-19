@@ -1,4 +1,4 @@
-/* REDESIGN: updated for ElbaIntimo UI refresh — kept props unchanged */
+/* REDESIGN: updated for HARIMI UI refresh — kept props unchanged */
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

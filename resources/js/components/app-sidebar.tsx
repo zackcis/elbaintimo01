@@ -1,4 +1,4 @@
-/* REDESIGN: updated for ElbaIntimo UI refresh — kept props unchanged */
+/* REDESIGN: updated for HARIMI UI refresh — kept props unchanged */
 import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
 import { NavUser } from '@/components/nav-user';
@@ -66,7 +66,7 @@ export function AppSidebar() {
             <SidebarHeader className="px-4 py-3">
                 <SidebarMenu>
                     <SidebarMenuItem>
-                        <SidebarMenuButton size="lg" asChild>
+                        <SidebarMenuButton size="lg" asChild tooltip="HARIMI">
                             <Link href={dashboard()} prefetch>
                                 <AppLogo />
                             </Link>

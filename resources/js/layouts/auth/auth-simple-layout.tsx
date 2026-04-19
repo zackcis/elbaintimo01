@@ -1,4 +1,4 @@
-/* REDESIGN: updated for ElbaIntimo UI refresh — kept props unchanged */
+/* REDESIGN: updated for HARIMI UI refresh — kept props unchanged */
 import AppLogoIcon from '@/components/app-logo-icon';
 import { home } from '@/routes';
 import { Link } from '@inertiajs/react';
@@ -17,24 +17,25 @@ export default function AuthSimpleLayout({
 }: PropsWithChildren<AuthLayoutProps>) {
     return (
         <div className="flex min-h-svh flex-col items-center justify-center gap-6 bg-background p-6 md:p-10">
-            <div className="w-full max-w-sm rounded-2xl bg-beige/80 p-8 shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
+            <div className="w-full max-w-sm rounded-2xl border border-border/60 bg-card/95 p-8 shadow-[0_2px_12px_rgba(0,0,0,0.06)] backdrop-blur-sm">
                 <div className="flex flex-col gap-8">
                     <div className="flex flex-col items-center gap-4">
                         <Link
                             href={home()}
-                            className="flex flex-col items-center gap-2 font-medium"
+                            className="flex flex-col items-center gap-2 font-medium outline-none ring-ring/40 focus-visible:rounded-lg focus-visible:ring-2"
                         >
-                            <div className="mb-1 flex h-12 w-12 items-center justify-center rounded-xl">
-                                <AppLogoIcon className="size-12 fill-current text-[var(--foreground)] dark:text-white" />
-                            </div>
+                            <span className="mb-0.5 flex size-12 items-center justify-center rounded-xl border border-border bg-beige/50 shadow-inner">
+                                <AppLogoIcon className="size-7 text-foreground dark:text-[#f5f0e8]" />
+                            </span>
+                            <span className="font-serif text-xs font-semibold tracking-[0.22em] text-muted-foreground">
+                                HARIMI
+                            </span>
                             <span className="sr-only">{title}</span>
                         </Link>
 
                         <div className="space-y-2 text-center">
-                            <h1 className="font-serif text-xl font-semibold">{title}</h1>
-                            <p className="text-center text-sm text-muted-foreground">
-                                {description}
-                            </p>
+                            <h1 className="font-serif text-xl font-semibold text-foreground">{title}</h1>
+                            <p className="text-center text-sm text-muted-foreground">{description}</p>
                         </div>
                     </div>
                     {children}

@@ -1,4 +1,4 @@
-/* REDESIGN: updated for ElbaIntimo UI refresh — kept props unchanged */
+/* REDESIGN: updated for HARIMI UI refresh — kept props unchanged */
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,10 +7,22 @@ import { dashboard } from '@/routes';
 import { index as products } from '@/routes/products';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, router } from '@inertiajs/react';
-import { Package, Tag, DollarSign, Box, ArrowLeft, ShoppingBag, ChevronRight, Star, X, GripVertical } from 'lucide-react';
+import {
+    Package,
+    Tag,
+    DollarSign,
+    Box,
+    ArrowLeft,
+    ShoppingBag,
+    ChevronRight,
+    ChevronLeft,
+    Star,
+    X,
+    GripVertical,
+} from 'lucide-react';
 import { getStockStatusInfo } from '@/lib/stock-utils';
 import { getColorHex, isLightColor } from '@/lib/color-utils';
-import { useState } from 'react';
+import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { ToastContainer } from '@/components/toast';
 
@@ -57,9 +69,17 @@ interface ProductsShowProps {
     relatedProducts: Product[];
 }
 
+function initialImageIndex(images: ProductImage[]): number {
+    const sorted = [...images].sort((a, b) => a.position - b.position);
+    const primaryIdx = sorted.findIndex((img) => img.is_primary);
+    return primaryIdx >= 0 ? primaryIdx : 0;
+}
+
 export default function ProductsShow({ product, relatedProducts }: ProductsShowProps) {
     const toast = useToast();
-    const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+    const [selectedImageIndex, setSelectedImageIndex] = useState(() =>
+        initialImageIndex(product.images),
+    );
     const [selectedSize, setSelectedSize] = useState<string | null>(null);
     const [selectedColor, setSelectedColor] = useState<string | null>(null);
     const [draggedImageIndex, setDraggedImageIndex] = useState<number | null>(null);
@@ -84,7 +104,6 @@ export default function ProductsShow({ product, relatedProducts }: ProductsShowP
         return variants.reduce((sum, variant) => sum + variant.stock, 0);
     };
 
-    const primaryImage = getPrimaryImage(product.images);
     const priceRange = getPriceRange(product.variants);
     const totalStock = getTotalStock(product.variants);
     const stockInfo = getStockStatusInfo(totalStock);
@@ -102,9 +121,46 @@ export default function ProductsShow({ product, relatedProducts }: ProductsShowP
 
     // Sort images by position
     const [sortedImages, setSortedImages] = useState(
-        [...product.images].sort((a, b) => a.position - b.position)
+        [...product.images].sort((a, b) => a.position - b.position),
     );
-    const displayImage = sortedImages[selectedImageIndex] || sortedImages[0] || null;
+    const carouselRef = useRef<HTMLDivElement>(null);
+
+    const imageIdsKey = sortedImages.map((i) => i.id).join(',');
+
+    const scrollCarouselToIndex = useCallback(
+        (index: number, behavior: ScrollBehavior = 'smooth') => {
+            const el = carouselRef.current;
+            if (!el || sortedImages.length === 0) return;
+            const clamped = Math.max(0, Math.min(index, sortedImages.length - 1));
+            const w = el.clientWidth;
+            if (w <= 0) return;
+            el.scrollTo({ left: clamped * w, behavior });
+        },
+        [sortedImages.length],
+    );
+
+    const syncIndexFromScroll = useCallback(() => {
+        const el = carouselRef.current;
+        if (!el || sortedImages.length === 0) return;
+        const w = el.clientWidth;
+        if (w <= 0) return;
+        const i = Math.round(el.scrollLeft / w);
+        const clamped = Math.max(0, Math.min(i, sortedImages.length - 1));
+        setSelectedImageIndex((prev) => (prev === clamped ? prev : clamped));
+    }, [sortedImages.length]);
+
+    // After mount or when images list changes: clamp index and snap scroll (does not run on swipe-only index changes).
+    useLayoutEffect(() => {
+        const el = carouselRef.current;
+        if (!el || sortedImages.length === 0) return;
+        const w = el.clientWidth;
+        if (w <= 0) return;
+        setSelectedImageIndex((idx) => {
+            const next = Math.max(0, Math.min(idx, sortedImages.length - 1));
+            el.scrollLeft = next * w;
+            return next;
+        });
+    }, [imageIdsKey, sortedImages.length]);
 
     // Handle drag and drop reordering (UI only - visual feedback)
     const handleDragStart = (index: number) => {
@@ -134,11 +190,13 @@ export default function ProductsShow({ product, relatedProducts }: ProductsShowP
             router.delete(`/products/${product.id}/images/${imageId}`, {
                 onSuccess: () => {
                     toast.success('Image deleted successfully.');
-                    // Remove from local state
-                    setSortedImages(sortedImages.filter(img => img.id !== imageId));
-                    if (selectedImageIndex >= sortedImages.length - 1) {
-                        setSelectedImageIndex(Math.max(0, sortedImages.length - 2));
-                    }
+                    setSortedImages((prev) => {
+                        const next = prev.filter((img) => img.id !== imageId);
+                        setSelectedImageIndex((i) =>
+                            Math.max(0, Math.min(i, Math.max(0, next.length - 1))),
+                        );
+                        return next;
+                    });
                 },
             });
         }
@@ -161,7 +219,7 @@ export default function ProductsShow({ product, relatedProducts }: ProductsShowP
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title={`${product.title} - ElbaIntimo`} />
+            <Head title={`${product.title} - HARIMI`} />
             <ToastContainer toasts={toast.toasts} onClose={toast.removeToast} />
             <div className="flex h-full flex-1 flex-col gap-8 p-6 bg-beige-light">
                 {/* Back Button */}
@@ -177,36 +235,119 @@ export default function ProductsShow({ product, relatedProducts }: ProductsShowP
                 <div className="grid gap-8 lg:grid-cols-2">
                     {/* Product Image Gallery */}
                     <div className="space-y-4">
-                        {/* Main Image */}
+                        {/* Image carousel: swipe / scroll-snap + arrows + dots */}
                         <Card className="overflow-hidden border-gray-200 shadow-sm rounded-lg">
-                            <div className="aspect-[3/4] bg-beige relative overflow-hidden">
-                                {displayImage ? (
-                                    <div className="absolute inset-0">
-                                        <img
-                                            src={`/storage/${displayImage.path}`}
-                                            alt={product.title}
-                                            className="w-full h-full object-cover"
-                                            onError={(e) => {
-                                                // Fallback to placeholder if image fails to load
-                                                const target = e.target as HTMLImageElement;
-                                                target.style.display = 'none';
-                                                const placeholder = target.parentElement?.querySelector('.placeholder');
-                                                if (placeholder) {
-                                                    (placeholder as HTMLElement).style.display = 'flex';
-                                                }
+                            <div className="relative bg-beige">
+                                {sortedImages.length > 0 ? (
+                                    <>
+                                        <div
+                                            ref={carouselRef}
+                                            onScroll={() => {
+                                                requestAnimationFrame(syncIndexFromScroll);
                                             }}
-                                        />
-                                        <div className="placeholder absolute inset-0 flex items-center justify-center bg-gradient-to-br from-beige to-beige-light" style={{ display: 'none' }}>
-                                            <Package className="h-32 w-32 text-gray-300" />
+                                            className="flex aspect-[3/4] w-full touch-pan-x overflow-x-auto overscroll-x-contain scroll-smooth snap-x snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                                        >
+                                            {sortedImages.map((image, index) => (
+                                                <div
+                                                    key={image.id}
+                                                    className="relative h-full min-h-0 w-full min-w-full shrink-0 snap-center snap-always"
+                                                >
+                                                    <img
+                                                        src={`/storage/${image.path}`}
+                                                        alt={`${product.title} — ${index + 1}`}
+                                                        className="h-full w-full object-cover"
+                                                        draggable={false}
+                                                        onError={(e) => {
+                                                            const target = e.target as HTMLImageElement;
+                                                            target.style.display = 'none';
+                                                            const placeholder =
+                                                                target.parentElement?.querySelector(
+                                                                    '.carousel-slide-placeholder',
+                                                                );
+                                                            if (placeholder) {
+                                                                (placeholder as HTMLElement).style.display =
+                                                                    'flex';
+                                                            }
+                                                        }}
+                                                    />
+                                                    <div
+                                                        className="carousel-slide-placeholder absolute inset-0 hidden items-center justify-center bg-gradient-to-br from-beige to-beige-light"
+                                                    >
+                                                        <Package className="h-32 w-32 text-gray-300" />
+                                                    </div>
+                                                    {image.is_primary && (
+                                                        <Badge className="absolute top-3 left-3 z-10 bg-burgundy font-sans text-xs uppercase tracking-wide text-white border-0">
+                                                            Primary
+                                                        </Badge>
+                                                    )}
+                                                </div>
+                                            ))}
                                         </div>
-                                        {displayImage.is_primary && (
-                                            <Badge className="absolute top-3 left-3 bg-burgundy text-white font-sans text-xs uppercase tracking-wide border-0">
-                                                Primary
-                                            </Badge>
+
+                                        {sortedImages.length > 1 && (
+                                            <>
+                                                <button
+                                                    type="button"
+                                                    aria-label="Previous image"
+                                                    onClick={() => {
+                                                        const i = Math.max(0, selectedImageIndex - 1);
+                                                        setSelectedImageIndex(i);
+                                                        scrollCarouselToIndex(i);
+                                                    }}
+                                                    disabled={selectedImageIndex <= 0}
+                                                    className="absolute left-2 top-1/2 z-10 -translate-y-1/2 rounded-full border border-white/80 bg-white/90 p-2 text-burgundy shadow-md transition hover:bg-white disabled:pointer-events-none disabled:opacity-40"
+                                                >
+                                                    <ChevronLeft className="h-5 w-5" />
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    aria-label="Next image"
+                                                    onClick={() => {
+                                                        const i = Math.min(
+                                                            sortedImages.length - 1,
+                                                            selectedImageIndex + 1,
+                                                        );
+                                                        setSelectedImageIndex(i);
+                                                        scrollCarouselToIndex(i);
+                                                    }}
+                                                    disabled={
+                                                        selectedImageIndex >= sortedImages.length - 1
+                                                    }
+                                                    className="absolute right-2 top-1/2 z-10 -translate-y-1/2 rounded-full border border-white/80 bg-white/90 p-2 text-burgundy shadow-md transition hover:bg-white disabled:pointer-events-none disabled:opacity-40"
+                                                >
+                                                    <ChevronRight className="h-5 w-5" />
+                                                </button>
+                                                <div
+                                                    className="pointer-events-none absolute bottom-3 left-0 right-0 flex justify-center gap-2 px-4"
+                                                    aria-hidden
+                                                >
+                                                    <div className="pointer-events-auto flex flex-wrap justify-center gap-1.5 rounded-full bg-black/25 px-2 py-1.5 backdrop-blur-sm">
+                                                        {sortedImages.map((_, i) => (
+                                                            <button
+                                                                key={i}
+                                                                type="button"
+                                                                aria-label={`Go to image ${i + 1}`}
+                                                                aria-current={
+                                                                    i === selectedImageIndex ? 'true' : undefined
+                                                                }
+                                                                onClick={() => {
+                                                                    setSelectedImageIndex(i);
+                                                                    scrollCarouselToIndex(i);
+                                                                }}
+                                                                className={`h-2.5 w-2.5 rounded-full transition ${
+                                                                    i === selectedImageIndex
+                                                                        ? 'scale-125 bg-white'
+                                                                        : 'bg-white/50 hover:bg-white/80'
+                                                                }`}
+                                                            />
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            </>
                                         )}
-                                    </div>
+                                    </>
                                 ) : (
-                                    <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-beige to-beige-light">
+                                    <div className="flex aspect-[3/4] items-center justify-center bg-gradient-to-br from-beige to-beige-light">
                                         <Package className="h-32 w-32 text-gray-300" />
                                     </div>
                                 )}
@@ -230,7 +371,11 @@ export default function ProductsShow({ product, relatedProducts }: ProductsShowP
                                         }`}
                                     >
                                         <button
-                                            onClick={() => setSelectedImageIndex(index)}
+                                            type="button"
+                                            onClick={() => {
+                                                setSelectedImageIndex(index);
+                                                scrollCarouselToIndex(index);
+                                            }}
                                             className={`w-20 h-20 rounded-lg border-2 overflow-hidden transition-all relative ${
                                                 selectedImageIndex === index
                                                     ? 'border-burgundy ring-2 ring-burgundy/20'

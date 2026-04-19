@@ -1,4 +1,4 @@
-/* REDESIGN: updated for ElbaIntimo UI refresh — kept props unchanged */
+/* REDESIGN: updated for HARIMI UI refresh — kept props unchanged */
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,14 +10,19 @@ import { dashboard } from '@/routes';
 import { index as products } from '@/routes/products';
 import { type BreadcrumbItem } from '@/types';
 import { Head, router, usePage } from '@inertiajs/react';
-import { Plus, Trash2, X } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import { FormEvent, useState } from 'react';
-import { MultipleImageUpload } from '@/components/image-upload';
+import { MultipleImageUpload, SingleImageUpload } from '@/components/image-upload';
 
 interface Category {
     id: number;
     name: string;
     parent_id: number | null;
+}
+
+interface Brand {
+    id: number;
+    name: string;
 }
 
 interface ProductVariant {
@@ -40,6 +45,7 @@ interface Product {
     title: string;
     description: string | null;
     category_id: number;
+    brand_id: number | null;
     variants: ProductVariant[];
     images: ProductImage[];
 }
@@ -47,7 +53,10 @@ interface Product {
 interface ProductFormProps {
     product: Product;
     categories: Category[];
+    brands: Brand[];
 }
+
+type BrandMode = 'existing' | 'new';
 
 interface Variant {
     size: string;
@@ -65,7 +74,7 @@ interface Image {
     position: number;
 }
 
-export default function EditProduct({ product, categories }: ProductFormProps) {
+export default function EditProduct({ product, categories, brands }: ProductFormProps) {
     const page = usePage();
     const errors = (page.props as any).errors || {};
 
@@ -105,6 +114,10 @@ export default function EditProduct({ product, categories }: ProductFormProps) {
             : [],
     );
 
+    const [brandMode, setBrandMode] = useState<BrandMode>('existing');
+    const [newBrandName, setNewBrandName] = useState('');
+    const [newBrandLogo, setNewBrandLogo] = useState<File | null>(null);
+
     const addVariant = () => {
         setVariants([...variants, { size: '', color: '', price: '', stock: '' }]);
     };
@@ -130,8 +143,17 @@ export default function EditProduct({ product, categories }: ProductFormProps) {
         uploadData.append('title', formData.get('title') as string);
         uploadData.append('description', (formData.get('description') as string) || '');
         uploadData.append('category_id', formData.get('category_id') as string);
-        if (formData.get('brand_id')) {
-            uploadData.append('brand_id', formData.get('brand_id') as string);
+
+        if (brandMode === 'existing') {
+            const brandId = formData.get('brand_id');
+            if (brandId) {
+                uploadData.append('brand_id', brandId as string);
+            }
+        } else if (brandMode === 'new' && newBrandName.trim()) {
+            uploadData.append('new_brand_name', newBrandName.trim());
+            if (newBrandLogo) {
+                uploadData.append('new_brand_logo', newBrandLogo);
+            }
         }
 
         // Add variants
@@ -163,7 +185,7 @@ export default function EditProduct({ product, categories }: ProductFormProps) {
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title="Edit Product - ElbaIntimo" />
+            <Head title="Edit Product - HARIMI" />
             <div className="flex h-full flex-1 flex-col gap-6 p-6 bg-beige-light">
                 <div className="flex flex-col gap-3">
                     <h1 className="text-4xl font-serif font-bold tracking-tight text-burgundy">
@@ -216,6 +238,76 @@ export default function EditProduct({ product, categories }: ProductFormProps) {
                                     ))}
                                 </select>
                                 <InputError message={errors.category_id} />
+                            </div>
+
+                            {/* Brand: existing or add new (same as create — keeps brand_id on save) */}
+                            <div className="grid gap-3">
+                                <Label className="font-sans font-semibold">Brand</Label>
+                                <div className="flex flex-wrap gap-4">
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="radio"
+                                            name="brand_mode"
+                                            checked={brandMode === 'existing'}
+                                            onChange={() => setBrandMode('existing')}
+                                            className="rounded-full border-gray-300 text-burgundy focus:ring-burgundy"
+                                        />
+                                        <span className="text-sm font-sans">Use existing brand</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="radio"
+                                            name="brand_mode"
+                                            checked={brandMode === 'new'}
+                                            onChange={() => setBrandMode('new')}
+                                            className="rounded-full border-gray-300 text-burgundy focus:ring-burgundy"
+                                        />
+                                        <span className="text-sm font-sans">Add new brand</span>
+                                    </label>
+                                </div>
+                                {brandMode === 'existing' ? (
+                                    <select
+                                        id="brand_id"
+                                        name="brand_id"
+                                        defaultValue={product.brand_id?.toString() ?? ''}
+                                        className="flex h-9 w-full rounded-md border border-gray-300 bg-transparent px-3 py-2 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-burgundy focus-visible:ring-burgundy/50 focus-visible:ring-[3px]"
+                                    >
+                                        <option value="">No brand</option>
+                                        {brands.map((brand) => (
+                                            <option key={brand.id} value={brand.id}>
+                                                {brand.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                ) : (
+                                    <div className="space-y-3 rounded-lg border border-border/80 bg-beige/50 p-4">
+                                        <div className="grid gap-2">
+                                            <Label
+                                                htmlFor="new_brand_name"
+                                                className="text-sm font-sans font-semibold"
+                                            >
+                                                New brand name *
+                                            </Label>
+                                            <Input
+                                                id="new_brand_name"
+                                                value={newBrandName}
+                                                onChange={(e) => setNewBrandName(e.target.value)}
+                                                className="border-gray-300"
+                                                placeholder="Enter brand name"
+                                            />
+                                            <InputError message={errors.new_brand_name} />
+                                        </div>
+                                        <div className="grid gap-2">
+                                            <SingleImageUpload
+                                                value={newBrandLogo}
+                                                onChange={setNewBrandLogo}
+                                                label="Brand logo (optional)"
+                                            />
+                                            <InputError message={errors.new_brand_logo} />
+                                        </div>
+                                    </div>
+                                )}
+                                <InputError message={errors.brand_id} />
                             </div>
 
                             <div className="grid gap-2">

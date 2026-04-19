@@ -1,4 +1,4 @@
-/* REDESIGN: updated for ElbaIntimo UI refresh — kept props unchanged */
+/* REDESIGN: updated for HARIMI UI refresh — kept props unchanged */
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -35,8 +35,14 @@ interface Category {
     parent_id: number | null;
 }
 
+interface Brand {
+    id: number;
+    name: string;
+}
+
 interface ProductFormProps {
     categories: Category[];
+    brands: Brand[];
 }
 
 interface Variant {
@@ -130,7 +136,7 @@ export default function CreateProduct({ categories, brands }: ProductFormProps) 
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title="Create Product - ElbaIntimo" />
+            <Head title="Create Product - HARIMI" />
             <div className="flex h-full flex-1 flex-col gap-6 p-6 bg-beige-light">
                 <div className="flex flex-col gap-3">
                     <h1 className="text-4xl font-serif font-bold tracking-tight text-burgundy">

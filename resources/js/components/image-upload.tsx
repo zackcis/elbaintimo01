@@ -1,4 +1,4 @@
-/* REDESIGN: updated for ElbaIntimo UI refresh — kept props unchanged */
+/* REDESIGN: updated for HARIMI UI refresh — kept props unchanged */
 import { Button } from '@/components/ui/button';
 import { X, Upload, Image as ImageIcon } from 'lucide-react';
 import { useRef, useState } from 'react';
@@ -263,17 +263,37 @@ export function MultipleImageUpload({
         const files = Array.from(e.target.files || []);
         if (files.length === 0) return;
 
-        const newImages = files.slice(0, maxImages - images.length).map((file) => {
+        const hadPrimary = images.some((img) => img.is_primary);
+
+        const newImages = files.slice(0, maxImages - images.length).map((file, fileIndex) => {
             const preview = URL.createObjectURL(file);
             return {
                 file,
                 preview,
-                is_primary: images.length === 0,
-                position: images.length,
+                // Only the first file in this batch is primary when the list was empty
+                // and nothing was primary yet (fixes multi-select: all files saw images.length === 0).
+                is_primary: !hadPrimary && images.length === 0 && fileIndex === 0,
+                position: images.length + fileIndex,
             };
         });
 
-        onChange([...images, ...newImages]);
+        const merged = [...images, ...newImages];
+        merged.forEach((img, i) => {
+            img.position = i;
+        });
+
+        const firstPrimary = merged.findIndex((img) => img.is_primary);
+        if (firstPrimary === -1) {
+            if (merged.length > 0) {
+                merged[0].is_primary = true;
+            }
+        } else {
+            merged.forEach((img, i) => {
+                img.is_primary = i === firstPrimary;
+            });
+        }
+
+        onChange(merged);
         if (fileInputRef.current) {
             fileInputRef.current.value = '';
         }

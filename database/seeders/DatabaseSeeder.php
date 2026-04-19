@@ -3,8 +3,8 @@
 namespace Database\Seeders;
 
 use App\Models\User;
-// use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Hash;
 
 class DatabaseSeeder extends Seeder
 {
@@ -13,15 +13,34 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // User::factory(10)->create();
-
+        // Create test user
         User::firstOrCreate(
             ['email' => 'test@example.com'],
             [
                 'name' => 'Test User',
-                'password' => 'password',
+                'email' => 'test@example.com',
+                'password' => Hash::make('password'),
+                'phone' => '+1234567890',
+                'address' => '123 Test Street, Test City, TC 12345',
                 'email_verified_at' => now(),
             ]
         );
+
+        // Create additional test users
+        User::factory(5)->create([
+            'phone' => fake()->phoneNumber(),
+            'address' => fake()->address(),
+        ]);
+
+        // Seed categories first (required for products)
+        // Seed brands before products (required for products)
+        $this->call([
+            CategorySeeder::class,
+            BrandSeeder::class,
+            ProductSeeder::class,
+        ]);
+
+        $this->command->info('Database seeded successfully!');
+        $this->command->info('Test user: test@example.com / password');
     }
 }

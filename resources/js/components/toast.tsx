@@ -1,4 +1,4 @@
-/* REDESIGN: updated for ElbaIntimo UI refresh — kept props unchanged */
+/* REDESIGN: updated for HARIMI UI refresh — kept props unchanged */
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { X } from 'lucide-react';
 import { useEffect, useState } from 'react';

@@ -1,4 +1,4 @@
-/* REDESIGN: updated for ElbaIntimo UI refresh — kept props unchanged */
+/* REDESIGN: updated for HARIMI UI refresh — kept props unchanged */
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -131,7 +131,7 @@ export default function CommandsIndex({ commands }: CommandsProps) {
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title="Commandes - ElbaIntimo" />
+            <Head title="Commandes - HARIMI" />
             <ToastContainer toasts={toast.toasts} onClose={toast.removeToast} />
             <ConfirmationDialog
                 open={deleteDialog.open}

@@ -1,4 +1,4 @@
-/* REDESIGN: updated for ElbaIntimo UI refresh — kept props unchanged */
+/* REDESIGN: updated for HARIMI UI refresh — kept props unchanged */
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -136,7 +136,7 @@ export default function CommandsShow({ command }: CommandsShowProps) {
 
     return (
         <AppLayout breadcrumbs={breadcrumbsWithCommand}>
-            <Head title={`${command.reference} - ElbaIntimo`} />
+            <Head title={`${command.reference} - HARIMI`} />
             <ToastContainer toasts={toast.toasts} onClose={toast.removeToast} />
             <ConfirmationDialog
                 open={deleteDialog}

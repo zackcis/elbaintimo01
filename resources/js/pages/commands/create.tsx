@@ -1,4 +1,4 @@
-/* REDESIGN: updated for ElbaIntimo UI refresh — kept props unchanged */
+/* REDESIGN: updated for HARIMI UI refresh — kept props unchanged */
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -136,7 +136,7 @@ export default function CreateCommand({ products }: CommandFormProps) {
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title="Créer une commande - ElbaIntimo" />
+            <Head title="Créer une commande - HARIMI" />
             <ToastContainer toasts={toast.toasts} onClose={toast.removeToast} />
             <div className="flex h-full flex-1 flex-col gap-6 p-8 bg-gray-50">
                 <div>

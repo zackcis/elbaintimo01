@@ -1,4 +1,4 @@
-/* REDESIGN: updated for ElbaIntimo UI refresh — kept props unchanged */
+/* REDESIGN: updated for HARIMI UI refresh — kept props unchanged */
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -26,16 +26,16 @@ const breadcrumbs: BreadcrumbItem[] = [
     },
 ];
 
-interface Category {
+interface ParentOption {
     id: number;
-    name: string;
+    label: string;
 }
 
 interface CategoryFormProps {
-    parentCategories: Category[];
+    parentOptions: ParentOption[];
 }
 
-export default function CreateCategory({ parentCategories }: CategoryFormProps) {
+export default function CreateCategory({ parentOptions }: CategoryFormProps) {
     const page = usePage();
     const errors = (page.props as any).errors || {};
     const [imageFile, setImageFile] = useState<File | null>(null);
@@ -60,7 +60,7 @@ export default function CreateCategory({ parentCategories }: CategoryFormProps) 
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title="Create Category - ElbaIntimo" />
+            <Head title="Create Category - HARIMI" />
             <div className="flex h-full flex-1 flex-col gap-6 p-6 bg-beige-light">
                 <div className="flex flex-col gap-3">
                     <h1 className="text-4xl font-serif font-bold tracking-tight text-burgundy">
@@ -103,9 +103,9 @@ export default function CreateCategory({ parentCategories }: CategoryFormProps) 
                                     className="flex h-9 w-full rounded-md border border-gray-300 bg-transparent px-3 py-2 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-burgundy focus-visible:ring-burgundy/50 focus-visible:ring-[3px]"
                                 >
                                     <option value="">None (Top-level category)</option>
-                                    {parentCategories.map((category) => (
-                                        <option key={category.id} value={category.id}>
-                                            {category.name}
+                                    {parentOptions.map((opt) => (
+                                        <option key={opt.id} value={opt.id}>
+                                            {opt.label}
                                         </option>
                                     ))}
                                 </select>

@@ -1,4 +1,4 @@
-/* REDESIGN: updated for ElbaIntimo UI refresh — kept props unchanged */
+/* REDESIGN: updated for HARIMI UI refresh — kept props unchanged */
 import { Head } from '@inertiajs/react';
 import { Printer, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -35,7 +35,7 @@ export default function Invoice({ command }: InvoiceProps) {
 
     return (
         <>
-            <Head title={`Bon de Commande ${command.reference} - ElbaIntimo`} />
+            <Head title={`Bon de Commande ${command.reference} - HARIMI`} />
             
             {/* Print Controls - Hidden when printing */}
             <div className="no-print fixed top-4 right-4 z-50 flex gap-2 bg-white p-4 rounded-2xl shadow-lg border border-border/80">
@@ -59,10 +59,12 @@ export default function Invoice({ command }: InvoiceProps) {
                     <div className="flex items-start justify-between mb-6">
                         <div>
                             <div className="h-16 w-16 bg-burgundy rounded-lg mb-4 flex items-center justify-center">
-                                <span className="text-white font-bold text-xl">EI</span>
+                                <span className="text-white font-serif font-bold text-2xl tracking-tight">
+                                    H
+                                </span>
                             </div>
                             <h1 className="text-2xl font-bold text-gray-900 mb-1">
-                                ElbaIntimo
+                                HARIMI
                             </h1>
                             <p className="text-sm text-gray-600">
                                 Boutique de lingerie et accessoires
@@ -214,10 +216,10 @@ export default function Invoice({ command }: InvoiceProps) {
                             Document généré automatiquement
                         </p>
                         <p>
-                            ElbaIntimo - Boutique de lingerie et accessoires
+                            HARIMI - Boutique de lingerie et accessoires
                         </p>
                         <p>
-                            Email: contact@elbaintimo.com | Tél: +33 1 23 45 67 89
+                            Email: contact@harimi.com | Tél: +33 1 23 45 67 89
                         </p>
                         <p className="mt-4">
                             Généré le {new Date().toLocaleString('fr-FR')}

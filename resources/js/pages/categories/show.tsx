@@ -1,11 +1,12 @@
-/* REDESIGN: updated for ElbaIntimo UI refresh — kept props unchanged */
+/* REDESIGN: updated for HARIMI UI refresh — kept props unchanged */
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import AppLayout from '@/layouts/app-layout';
 import { dashboard } from '@/routes';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link } from '@inertiajs/react';
-import { ArrowLeft, FolderTree, Package, Image as ImageIcon } from 'lucide-react';
+import { index as productsIndex } from '@/routes/products';
+import { ArrowLeft, FolderTree, Package, Image as ImageIcon, ListFilter } from 'lucide-react';
 
 interface CategoryImage {
     id: number;
@@ -38,7 +39,7 @@ export default function CategoryShow({ category }: CategoryShowProps) {
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title={`${category.name} - ElbaIntimo`} />
+            <Head title={`${category.name} - HARIMI`} />
             <div className="flex h-full flex-1 flex-col gap-6 p-8 bg-gray-50">
                 <Link
                     href="/categories"
@@ -149,7 +150,13 @@ export default function CategoryShow({ category }: CategoryShowProps) {
                         </Card>
                     )}
 
-                    <div className="flex gap-3">
+                    <div className="flex flex-wrap gap-3">
+                        <Link href={`${productsIndex().url}?category=${category.id}`}>
+                            <Button className="bg-burgundy text-white hover:bg-burgundy-dark">
+                                <ListFilter className="h-4 w-4 mr-2" />
+                                Voir les produits (catégorie)
+                            </Button>
+                        </Link>
                         <Link href={`/categories/${category.id}/edit`}>
                             <Button variant="outline" className="border-gray-300">
                                 Edit category

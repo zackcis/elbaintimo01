@@ -1,4 +1,4 @@
-/* REDESIGN: updated for ElbaIntimo UI refresh — kept props unchanged */
+/* REDESIGN: updated for HARIMI UI refresh — kept props unchanged */
 import { dashboard, login, register } from '@/routes';
 import { type SharedData } from '@/types';
 import { Head, Link, usePage } from '@inertiajs/react';
@@ -12,10 +12,10 @@ export default function Welcome({
 
     return (
         <>
-            <Head title="ElbaIntimo">
+            <Head title="HARIMI">
                 <link rel="preconnect" href="https://fonts.bunny.net" />
                 <link
-                    href="https://fonts.bunny.net/css?family=instrument-sans:400,500,600,700&family=inter:300,400,500,600,700"
+                    href="https://fonts.bunny.net/css?family=playfair-display:500,600,700&family=instrument-sans:400,500,600,700&family=inter:300,400,500,600,700"
                     rel="stylesheet"
                 />
             </Head>
@@ -53,7 +53,7 @@ export default function Welcome({
                     <main className="flex w-full max-w-[400px] flex-col-reverse gap-0 lg:max-w-4xl lg:flex-row lg:gap-0">
                         <div className="flex-1 rounded-2xl rounded-t-none bg-card p-8 pb-12 text-sm leading-relaxed shadow-[0_1px_3px_rgba(0,0,0,0.06)] lg:rounded-r-none lg:rounded-tl-2xl lg:p-12 dark:shadow-none dark:border dark:border-border">
                             <h1 className="mb-3 font-serif text-2xl font-semibold text-foreground">
-                                ElbaIntimo
+                                HARIMI
                             </h1>
                             <p className="mb-6 text-muted-foreground">
                                 Back office for your boutique. Manage products, categories, orders, and clients in one place.
@@ -82,7 +82,7 @@ export default function Welcome({
                                 </p>
                             )}
                         </div>
-                        <div className="relative h-48 w-full shrink-0 overflow-hidden rounded-t-2xl bg-gradient-to-br from-burgundy/20 to-accent/20 lg:h-auto lg:min-h-[320px] lg:w-[380px] lg:rounded-t-none lg:rounded-r-2xl dark:from-burgundy/30 dark:to-burgundy-dark/40" />
+                        <div className="relative h-48 w-full shrink-0 overflow-hidden rounded-t-2xl bg-gradient-to-br from-foreground/8 via-[var(--gold)]/15 to-transparent lg:h-auto lg:min-h-[320px] lg:w-[380px] lg:rounded-t-none lg:rounded-r-2xl dark:from-foreground/15 dark:via-[var(--gold)]/20 dark:to-transparent" />
                     </main>
                 </div>
                 <div className="hidden h-14.5 lg:block"></div>

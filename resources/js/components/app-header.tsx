@@ -32,7 +32,7 @@ import { cn, isSameUrl, resolveUrl } from '@/lib/utils';
 import { dashboard } from '@/routes';
 import { type BreadcrumbItem, type NavItem, type SharedData } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
-import { BookOpen, Folder, LayoutGrid, Menu, Search } from 'lucide-react';
+import { LayoutGrid, Menu, Search } from 'lucide-react';
 import AppLogo from './app-logo';
 import AppLogoIcon from './app-logo-icon';
 
@@ -44,18 +44,7 @@ const mainNavItems: NavItem[] = [
     },
 ];
 
-const rightNavItems: NavItem[] = [
-    {
-        title: 'Repository',
-        href: 'https://github.com/laravel/react-starter-kit',
-        icon: Folder,
-    },
-    {
-        title: 'Documentation',
-        href: 'https://laravel.com/docs/starter-kits#react',
-        icon: BookOpen,
-    },
-];
+const rightNavItems: NavItem[] = [];
 
 const activeItemStyles =
     'text-neutral-900 dark:bg-neutral-800 dark:text-neutral-100';
@@ -91,8 +80,16 @@ export function AppHeader({ breadcrumbs = [] }: AppHeaderProps) {
                                 <SheetTitle className="sr-only">
                                     Navigation Menu
                                 </SheetTitle>
-                                <SheetHeader className="flex justify-start text-left">
-                                    <AppLogoIcon className="h-6 w-6 fill-current text-black dark:text-white" />
+                                <SheetHeader className="flex justify-start border-b border-sidebar-border/70 pb-4 text-left">
+                                    <Link
+                                        href={dashboard()}
+                                        className="flex items-center gap-2.5 rounded-md outline-none ring-sidebar-ring focus-visible:ring-2"
+                                    >
+                                        <AppLogoIcon className="size-8 shrink-0 text-sidebar-foreground" />
+                                        <span className="font-serif text-sm font-semibold tracking-[0.2em] text-sidebar-foreground">
+                                            HARIMI
+                                        </span>
+                                    </Link>
                                 </SheetHeader>
                                 <div className="flex h-full flex-1 flex-col space-y-4 p-4">
                                     <div className="flex h-full flex-col justify-between text-sm">

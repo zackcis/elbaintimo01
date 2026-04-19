@@ -1,4 +1,4 @@
-/* REDESIGN: updated for ElbaIntimo UI refresh — kept props unchanged */
+/* REDESIGN: updated for HARIMI UI refresh — kept props unchanged */
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import AppLayout from '@/layouts/app-layout';
@@ -132,7 +132,7 @@ export default function Dashboard({ stats, recentActivities = [] }: DashboardPro
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title="Tableau de bord - ElbaIntimo" />
+            <Head title="Tableau de bord - HARIMI" />
             <div className="flex h-full flex-1 flex-col gap-6 p-8 bg-beige/30">
                 <div className="mb-2">
                     <h1 className="font-serif text-3xl font-semibold text-foreground mb-1">

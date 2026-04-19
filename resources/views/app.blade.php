@@ -22,21 +22,21 @@
         {{-- Inline style to set the HTML background color based on our theme in app.css --}}
         <style>
             html {
-                background-color: #f6efe6;
+                background-color: #f5f0e8;
             }
             html.dark {
-                background-color: #1f1b18;
+                background-color: #1c1916;
             }
         </style>
 
-        <title inertia>{{ config('app.name', 'Laravel') }}</title>
+        <title inertia>{{ config('app.name', 'HARIMI') }}</title>
 
-        <link rel="icon" href="/favicon.ico" sizes="any">
         <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+        <link rel="icon" href="/favicon.ico" sizes="any">
         <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 
         <link rel="preconnect" href="https://fonts.bunny.net">
-        <link href="https://fonts.bunny.net/css?family=instrument-sans:400,500,600,700&family=inter:300,400,500,600,700" rel="stylesheet" />
+        <link href="https://fonts.bunny.net/css?family=playfair-display:500,600,700&family=instrument-sans:400,500,600,700&family=inter:300,400,500,600,700" rel="stylesheet" />
 
         @viteReactRefresh
         @vite(['resources/js/app.tsx', "resources/js/pages/{$page['component']}.tsx"])
