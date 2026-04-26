@@ -7,8 +7,11 @@ use App\Http\Requests\UpdateCommandRequest;
 use App\Models\Command;
 use App\Models\CommandItem;
 use App\Models\Product;
+use App\Models\User;
 use App\Traits\LogsActivity;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -35,12 +38,19 @@ class CommandController extends Controller
      */
     public function create(): Response
     {
-        $products = Product::with(['variants', 'category', 'brand'])
-            ->orderBy('title')
+        $products = Product::query()
+            ->with(['variants', 'category.translations', 'brand.translations', 'translations'])
+            ->adminOrderByTitle()
             ->get();
+
+        $clients = User::query()
+            ->where('role', 'client')
+            ->orderBy('name')
+            ->get(['id', 'name', 'email', 'phone']);
 
         return Inertia::render('commands/create', [
             'products' => $products,
+            'clients' => $clients,
         ]);
     }
 
@@ -49,10 +59,31 @@ class CommandController extends Controller
      */
     public function store(StoreCommandRequest $request): RedirectResponse
     {
+        if ($request->input('client_mode') === 'existing') {
+            $client = User::query()
+                ->whereKey((int) $request->input('client_user_id'))
+                ->where('role', 'client')
+                ->firstOrFail();
+            $clientName = $client->name;
+            $clientEmail = $client->email;
+        } else {
+            User::query()->create([
+                'name' => $request->input('new_client_name'),
+                'email' => $request->input('new_client_email'),
+                'password' => Hash::make(Str::password(24)),
+                'phone' => $request->input('new_client_phone'),
+                'address' => $request->input('new_client_address'),
+                'role' => 'client',
+            ]);
+            $clientName = (string) $request->input('new_client_name');
+            $clientEmail = (string) $request->input('new_client_email');
+        }
+
         $command = Command::create([
             'reference' => Command::generateReference(),
-            'client_name' => $request->client_name,
-            'client_email' => $request->client_email,
+            'client_name' => $clientName,
+            'client_email' => $clientEmail,
+            'fulfillment_type' => $request->input('fulfillment_type', Command::FULFILLMENT_PICKUP),
             'status' => $request->status ?? 'pending',
             'total_amount' => 0, // Will be calculated
             'notes' => $request->notes,
@@ -82,7 +113,7 @@ class CommandController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show(Command $command): Response
+    public function show(string $locale, Command $command): Response
     {
         $command->load('items');
 
@@ -94,11 +125,12 @@ class CommandController extends Controller
     /**
      * Show the form for editing the specified resource.
      */
-    public function edit(Command $command): Response
+    public function edit(string $locale, Command $command): Response
     {
         $command->load('items');
-        $products = Product::with(['variants', 'category', 'brand'])
-            ->orderBy('title')
+        $products = Product::query()
+            ->with(['variants', 'category.translations', 'brand.translations', 'translations'])
+            ->adminOrderByTitle()
             ->get();
 
         return Inertia::render('commands/edit', [
@@ -110,13 +142,14 @@ class CommandController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(UpdateCommandRequest $request, Command $command): RedirectResponse
+    public function update(UpdateCommandRequest $request, string $locale, Command $command): RedirectResponse
     {
         $oldStatus = $command->status;
 
         $command->update([
             'client_name' => $request->client_name,
             'client_email' => $request->client_email,
+            'fulfillment_type' => $request->input('fulfillment_type', Command::FULFILLMENT_PICKUP),
             'status' => $request->status,
             'notes' => $request->notes,
         ]);
@@ -176,7 +209,7 @@ class CommandController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(Command $command): RedirectResponse
+    public function destroy(string $locale, Command $command): RedirectResponse
     {
         $command->delete();
 
@@ -187,7 +220,7 @@ class CommandController extends Controller
     /**
      * Generate and display Bon de Commande (Invoice)
      */
-    public function invoice(Command $command): Response
+    public function invoice(string $locale, Command $command): Response
     {
         $command->load('items');
 

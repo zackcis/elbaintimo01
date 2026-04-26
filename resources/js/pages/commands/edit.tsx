@@ -5,31 +5,16 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { useUi } from '@/hooks/use-ui';
 import AppLayout from '@/layouts/app-layout';
 import { dashboard } from '@/routes';
+import { index as commandsIndex, show as commandShow, update as commandUpdate } from '@/routes/commands';
 import { type BreadcrumbItem } from '@/types';
-import { Head, router, usePage } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import { Plus, X, ArrowLeft } from 'lucide-react';
 import { FormEvent, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { ToastContainer } from '@/components/toast';
-
-const commandsIndex = () => ({ url: '/commands' });
-
-const breadcrumbs: BreadcrumbItem[] = [
-    {
-        title: 'Dashboard',
-        href: dashboard().url,
-    },
-    {
-        title: 'Commandes',
-        href: commandsIndex().url,
-    },
-    {
-        title: 'Modifier',
-        href: '#',
-    },
-];
 
 interface ProductVariant {
     id: number;
@@ -62,6 +47,7 @@ interface Command {
     reference: string;
     client_name: string;
     client_email: string;
+    fulfillment_type: 'pickup' | 'ship';
     status: string;
     notes: string | null;
     items: Array<{
@@ -80,6 +66,13 @@ interface CommandFormProps {
 }
 
 export default function EditCommand({ command, products }: CommandFormProps) {
+    const { t, locale } = useUi();
+    const breadcrumbs: BreadcrumbItem[] = [
+        { title: t('breadcrumb.dashboard'), href: dashboard().url },
+        { title: t('commands.title'), href: commandsIndex().url },
+        { title: t('breadcrumb.edit'), href: '#' },
+    ];
+    const dateLocale = locale === 'it' ? 'it-IT' : 'en-US';
     const page = usePage();
     const errors = (page.props as any).errors || {};
     const toast = useToast();
@@ -105,7 +98,7 @@ export default function EditCommand({ command, products }: CommandFormProps) {
 
         if (!product || !variant) return;
 
-        const variantText = [variant.size, variant.color].filter(Boolean).join(' / ') || 'Standard';
+        const variantText = [variant.size, variant.color].filter(Boolean).join(' / ') || t('commands.form.standard');
         const unitPrice = parseFloat(variant.price);
 
         setItems([
@@ -145,13 +138,14 @@ export default function EditCommand({ command, products }: CommandFormProps) {
         const formData = new FormData(e.currentTarget);
 
         if (items.length === 0) {
-            toast.error('Veuillez ajouter au moins un article.');
+            toast.error(t('commands.need_item'));
             return;
         }
 
-        router.put(`/commands/${command.id}`, {
+        router.put(commandUpdate.url({ command: command.id }), {
             client_name: formData.get('client_name') as string,
             client_email: formData.get('client_email') as string,
+            fulfillment_type: (formData.get('fulfillment_type') as string) || 'pickup',
             status: formData.get('status') as string,
             notes: (formData.get('notes') as string) || null,
             items: items.map((item) => ({
@@ -165,22 +159,22 @@ export default function EditCommand({ command, products }: CommandFormProps) {
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title={`Modifier ${command.reference} - HARIMI`} />
+            <Head title={`${t('common.edit')} ${command.reference} - HARIMI`} />
             <ToastContainer toasts={toast.toasts} onClose={toast.removeToast} />
             <div className="flex h-full flex-1 flex-col gap-6 p-8 bg-gray-50">
                 <div>
                     <Link
-                        href={`/commands/${command.id}`}
+                        href={commandShow({ command: command.id }).url}
                         className="inline-flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 mb-4"
                     >
                         <ArrowLeft className="h-4 w-4" />
-                        Retour à la commande
+                        {t('commands.back_to_order')}
                     </Link>
                     <h1 className="text-3xl font-semibold text-gray-900 mb-1">
-                        Modifier la commande {command.reference}
+                        {t('common.edit')} {command.reference}
                     </h1>
                     <p className="text-sm text-gray-600">
-                        Modifiez les informations de la commande
+                        {t('commands.edit_subtitle')}
                     </p>
                 </div>
 
@@ -191,13 +185,13 @@ export default function EditCommand({ command, products }: CommandFormProps) {
                             <Card className="border-border/80">
                                 <CardHeader>
                                     <CardTitle className="text-lg font-semibold text-gray-900">
-                                        Informations client
+                                        {t('commands.show.client_info')}
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent className="space-y-4">
                                     <div className="grid gap-2">
                                         <Label htmlFor="client_name" className="text-sm font-medium text-gray-700">
-                                            Nom du client *
+                                            {t('commands.form.client_name')} *
                                         </Label>
                                         <Input
                                             id="client_name"
@@ -225,8 +219,24 @@ export default function EditCommand({ command, products }: CommandFormProps) {
                                     </div>
 
                                     <div className="grid gap-2">
+                                        <Label htmlFor="fulfillment_type" className="text-sm font-medium text-gray-700">
+                                            {t('invoice.fulfillment_label')}
+                                        </Label>
+                                        <select
+                                            id="fulfillment_type"
+                                            name="fulfillment_type"
+                                            defaultValue={command.fulfillment_type ?? 'pickup'}
+                                            className="flex h-9 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-burgundy/20 focus:border-burgundy"
+                                        >
+                                            <option value="pickup">{t('invoice.pickup_detail')}</option>
+                                            <option value="ship">{t('invoice.ship_detail')}</option>
+                                        </select>
+                                        <InputError message={errors.fulfillment_type} />
+                                    </div>
+
+                                    <div className="grid gap-2">
                                         <Label htmlFor="status" className="text-sm font-medium text-gray-700">
-                                            Statut
+                                            {t('invoice.status')}
                                         </Label>
                                         <select
                                             id="status"
@@ -234,16 +244,16 @@ export default function EditCommand({ command, products }: CommandFormProps) {
                                             defaultValue={command.status}
                                             className="flex h-9 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-burgundy/20 focus:border-burgundy"
                                         >
-                                            <option value="pending">En attente</option>
-                                            <option value="confirmed">Confirmée</option>
-                                            <option value="shipped">Expédiée</option>
-                                            <option value="cancelled">Annulée</option>
+                                            <option value="pending">{t('commands.status.pending')}</option>
+                                            <option value="confirmed">{t('commands.status.confirmed')}</option>
+                                            <option value="shipped">{t('commands.status.shipped')}</option>
+                                            <option value="cancelled">{t('commands.status.cancelled')}</option>
                                         </select>
                                     </div>
 
                                     <div className="grid gap-2">
                                         <Label htmlFor="notes" className="text-sm font-medium text-gray-700">
-                                            Notes (optionnel)
+                                            {t('commands.form.notes_optional')}
                                         </Label>
                                         <Textarea
                                             id="notes"
@@ -260,14 +270,14 @@ export default function EditCommand({ command, products }: CommandFormProps) {
                             <Card className="border-border/80">
                                 <CardHeader>
                                     <CardTitle className="text-lg font-semibold text-gray-900">
-                                        Ajouter un produit
+                                        {t('commands.form.add_product')}
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent className="space-y-4">
                                     <div className="grid gap-4 md:grid-cols-2">
                                         <div className="grid gap-2">
                                             <Label className="text-sm font-medium text-gray-700">
-                                                Produit
+                                                {t('invoice.product')}
                                             </Label>
                                             <select
                                                 value={selectedProductId || ''}
@@ -277,7 +287,7 @@ export default function EditCommand({ command, products }: CommandFormProps) {
                                                 }}
                                                 className="flex h-9 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-burgundy/20 focus:border-burgundy"
                                             >
-                                                <option value="">Sélectionner un produit</option>
+                                                <option value="">{t('commands.form.select_product')}</option>
                                                 {products.map((product) => (
                                                     <option key={product.id} value={product.id}>
                                                         {product.title}
@@ -288,7 +298,7 @@ export default function EditCommand({ command, products }: CommandFormProps) {
 
                                         <div className="grid gap-2">
                                             <Label className="text-sm font-medium text-gray-700">
-                                                Variante
+                                                {t('invoice.variant')}
                                             </Label>
                                             <select
                                                 value={selectedVariantId || ''}
@@ -296,12 +306,12 @@ export default function EditCommand({ command, products }: CommandFormProps) {
                                                 disabled={!selectedProduct}
                                                 className="flex h-9 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-burgundy/20 focus:border-burgundy disabled:bg-gray-50 disabled:text-gray-500"
                                             >
-                                                <option value="">Sélectionner une variante</option>
+                                                <option value="">{t('commands.form.select_variant')}</option>
                                                 {selectedProduct?.variants.map((variant) => {
-                                                    const variantText = [variant.size, variant.color].filter(Boolean).join(' / ') || 'Standard';
+                                                    const variantText = [variant.size, variant.color].filter(Boolean).join(' / ') || t('commands.form.standard');
                                                     return (
                                                         <option key={variant.id} value={variant.id}>
-                                                            {variantText} - {parseFloat(variant.price).toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })} (Stock: {variant.stock})
+                                                            {variantText} - {parseFloat(variant.price).toLocaleString(dateLocale, { style: 'currency', currency: 'EUR' })} ({t('products.show.stock')}: {variant.stock})
                                                         </option>
                                                     );
                                                 })}
@@ -316,7 +326,7 @@ export default function EditCommand({ command, products }: CommandFormProps) {
                                         className="bg-burgundy text-white hover:bg-burgundy-dark"
                                     >
                                         <Plus className="h-4 w-4 mr-2" />
-                                        Ajouter au panier
+                                        {t('commands.form.add_to_order')}
                                     </Button>
                                 </CardContent>
                             </Card>
@@ -327,13 +337,13 @@ export default function EditCommand({ command, products }: CommandFormProps) {
                             <Card className="border-border/80 sticky top-6">
                                 <CardHeader>
                                     <CardTitle className="text-lg font-semibold text-gray-900">
-                                        Résumé de la commande
+                                        {t('commands.show.summary')}
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent className="space-y-4">
                                     {items.length === 0 ? (
                                         <p className="text-sm text-gray-500 text-center py-8">
-                                            Aucun article ajouté
+                                            {t('commands.form.no_items')}
                                         </p>
                                     ) : (
                                         <>
@@ -364,7 +374,7 @@ export default function EditCommand({ command, products }: CommandFormProps) {
                                                         </div>
                                                         <div className="grid grid-cols-3 gap-2 mt-2">
                                                             <div>
-                                                                <Label className="text-xs text-gray-600">Qté</Label>
+                                                                <Label className="text-xs text-gray-600">{t('invoice.qty')}</Label>
                                                                 <Input
                                                                     type="number"
                                                                     min="1"
@@ -374,7 +384,7 @@ export default function EditCommand({ command, products }: CommandFormProps) {
                                                                 />
                                                             </div>
                                                             <div>
-                                                                <Label className="text-xs text-gray-600">Prix unit.</Label>
+                                                                <Label className="text-xs text-gray-600">{t('invoice.unit_price')}</Label>
                                                                 <Input
                                                                     type="number"
                                                                     step="0.01"
@@ -385,9 +395,9 @@ export default function EditCommand({ command, products }: CommandFormProps) {
                                                                 />
                                                             </div>
                                                             <div>
-                                                                <Label className="text-xs text-gray-600">Total</Label>
+                                                                <Label className="text-xs text-gray-600">{t('invoice.total')}</Label>
                                                                 <div className="h-8 flex items-center text-sm font-medium text-gray-900">
-                                                                    {item.total_price.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
+                                                                    {item.total_price.toLocaleString(dateLocale, { style: 'currency', currency: 'EUR' })}
                                                                 </div>
                                                             </div>
                                                         </div>
@@ -397,10 +407,10 @@ export default function EditCommand({ command, products }: CommandFormProps) {
                                             <div className="pt-4 border-t border-border/80">
                                                 <div className="flex items-center justify-between mb-4">
                                                     <span className="text-base font-semibold text-gray-900">
-                                                        Total
+                                                        {t('invoice.total')}
                                                     </span>
                                                     <span className="text-xl font-bold text-burgundy">
-                                                        {totalAmount.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
+                                                        {totalAmount.toLocaleString(dateLocale, { style: 'currency', currency: 'EUR' })}
                                                     </span>
                                                 </div>
                                             </div>
@@ -417,15 +427,15 @@ export default function EditCommand({ command, products }: CommandFormProps) {
                             disabled={items.length === 0}
                             className="bg-burgundy text-white hover:bg-burgundy-dark font-medium"
                         >
-                            Enregistrer les modifications
+                            {t('common.save')}
                         </Button>
                         <Button
                             type="button"
                             variant="outline"
-                            onClick={() => router.visit(`/commands/${command.id}`)}
+                            onClick={() => router.visit(commandShow({ command: command.id }).url)}
                             className="border-gray-300"
                         >
-                            Annuler
+                            {t('common.cancel')}
                         </Button>
                     </div>
                 </form>

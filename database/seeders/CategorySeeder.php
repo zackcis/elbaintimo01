@@ -8,83 +8,53 @@ use Illuminate\Database\Seeder;
 
 class CategorySeeder extends Seeder
 {
-    /**
-     * Run the database seeds.
-     */
     public function run(): void
     {
-        // Create parent categories
-        $womensClothing = Category::create(['name' => "Women's Clothing"]);
-        $mensClothing = Category::create(['name' => "Men's Clothing"]);
-        $accessories = Category::create(['name' => 'Accessories']);
-        $shoes = Category::create(['name' => 'Shoes']);
+        $womensClothing = $this->createCategory(null, "Women's Clothing");
+        $mensClothing = $this->createCategory(null, "Men's Clothing");
+        $accessories = $this->createCategory(null, 'Accessories');
+        $shoes = $this->createCategory(null, 'Shoes');
 
-        // Create child categories for Women's Clothing
-        $womensDresses = Category::create([
-            'name' => 'Dresses',
-            'parent_id' => $womensClothing->id,
-        ]);
-        $womensTops = Category::create([
-            'name' => 'Tops',
-            'parent_id' => $womensClothing->id,
-        ]);
-        $womensBottoms = Category::create([
-            'name' => 'Bottoms',
-            'parent_id' => $womensClothing->id,
-        ]);
-        $womensOuterwear = Category::create([
-            'name' => 'Outerwear',
-            'parent_id' => $womensClothing->id,
-        ]);
+        $womensDresses = $this->createCategory($womensClothing->id, 'Dresses');
+        $womensTops = $this->createCategory($womensClothing->id, 'Tops');
+        $womensBottoms = $this->createCategory($womensClothing->id, 'Bottoms');
+        $womensOuterwear = $this->createCategory($womensClothing->id, 'Outerwear');
 
-        // Create child categories for Men's Clothing
-        $mensTops = Category::create([
-            'name' => 'T-Shirts & Shirts',
-            'parent_id' => $mensClothing->id,
-        ]);
-        $mensBottoms = Category::create([
-            'name' => 'Pants & Shorts',
-            'parent_id' => $mensClothing->id,
-        ]);
-        $mensOuterwear = Category::create([
-            'name' => 'Jackets & Coats',
-            'parent_id' => $mensClothing->id,
-        ]);
+        $mensTops = $this->createCategory($mensClothing->id, 'T-Shirts & Shirts');
+        $mensBottoms = $this->createCategory($mensClothing->id, 'Pants & Shorts');
+        $mensOuterwear = $this->createCategory($mensClothing->id, 'Jackets & Coats');
 
-        // Create child categories for Accessories
-        $bags = Category::create([
-            'name' => 'Bags',
-            'parent_id' => $accessories->id,
-        ]);
-        $jewelry = Category::create([
-            'name' => 'Jewelry',
-            'parent_id' => $accessories->id,
-        ]);
-        $watches = Category::create([
-            'name' => 'Watches',
-            'parent_id' => $accessories->id,
-        ]);
+        $bags = $this->createCategory($accessories->id, 'Bags');
+        $jewelry = $this->createCategory($accessories->id, 'Jewelry');
+        $watches = $this->createCategory($accessories->id, 'Watches');
 
-        // Create child categories for Shoes
-        $womensShoes = Category::create([
-            'name' => "Women's Shoes",
-            'parent_id' => $shoes->id,
-        ]);
-        $mensShoes = Category::create([
-            'name' => "Men's Shoes",
-            'parent_id' => $shoes->id,
-        ]);
+        $womensShoes = $this->createCategory($shoes->id, "Women's Shoes");
+        $mensShoes = $this->createCategory($shoes->id, "Men's Shoes");
 
-        // Add images to parent categories
         CategoryImage::factory()->forCategory($womensClothing)->create(['path' => 'categories/womens-clothing.jpg']);
         CategoryImage::factory()->forCategory($mensClothing)->create(['path' => 'categories/mens-clothing.jpg']);
         CategoryImage::factory()->forCategory($accessories)->create(['path' => 'categories/accessories.jpg']);
         CategoryImage::factory()->forCategory($shoes)->create(['path' => 'categories/shoes.jpg']);
 
-        // Add images to some child categories
         CategoryImage::factory()->forCategory($womensDresses)->create(['path' => 'categories/womens-dresses.jpg']);
         CategoryImage::factory()->forCategory($womensTops)->create(['path' => 'categories/womens-tops.jpg']);
         CategoryImage::factory()->forCategory($mensTops)->create(['path' => 'categories/mens-tops.jpg']);
         CategoryImage::factory()->forCategory($bags)->create(['path' => 'categories/bags.jpg']);
+    }
+
+    private function createCategory(?int $parentId, string $label): Category
+    {
+        $category = Category::create([
+            'parent_id' => $parentId,
+        ]);
+
+        foreach (config('harimi.locales', ['it', 'en']) as $loc) {
+            $category->translations()->create([
+                'locale' => $loc,
+                'name' => $label,
+            ]);
+        }
+
+        return $category;
     }
 }

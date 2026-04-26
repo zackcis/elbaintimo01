@@ -22,7 +22,9 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         ResetPassword::toMailUsing(function (object $notifiable, string $token): MailMessage {
+            $locale = config('harimi.public_default_locale', 'it');
             $url = url(route('password.reset', [
+                'locale' => $locale,
                 'token' => $token,
                 'email' => $notifiable->getEmailForPasswordReset(),
             ], false));

@@ -3,9 +3,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import AppLayout from '@/layouts/app-layout';
 import { dashboard } from '@/routes';
+import { edit as categoryEdit, index as categoriesIndex, show as categoryShow } from '@/routes/categories';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link } from '@inertiajs/react';
-import { index as productsIndex } from '@/routes/products';
+import { index as productsIndex, show as productShow } from '@/routes/products';
 import { ArrowLeft, FolderTree, Package, Image as ImageIcon, ListFilter } from 'lucide-react';
 
 interface CategoryImage {
@@ -30,7 +31,7 @@ interface CategoryShowProps {
 export default function CategoryShow({ category }: CategoryShowProps) {
     const breadcrumbs: BreadcrumbItem[] = [
         { title: 'Dashboard', href: dashboard().url },
-        { title: 'Categories', href: '/categories' },
+        { title: 'Categories', href: categoriesIndex().url },
         { title: category.name, href: '#' },
     ];
 
@@ -42,7 +43,7 @@ export default function CategoryShow({ category }: CategoryShowProps) {
             <Head title={`${category.name} - HARIMI`} />
             <div className="flex h-full flex-1 flex-col gap-6 p-8 bg-gray-50">
                 <Link
-                    href="/categories"
+                    href={categoriesIndex().url}
                     className="inline-flex items-center gap-2 text-burgundy hover:text-burgundy-dark font-sans uppercase tracking-wide text-sm transition-colors w-fit"
                 >
                     <ArrowLeft className="h-4 w-4" />
@@ -58,7 +59,7 @@ export default function CategoryShow({ category }: CategoryShowProps) {
                             <p className="text-sm text-gray-600">
                                 Parent:{' '}
                                 <Link
-                                    href={`/categories/${category.parent.id}`}
+                                    href={categoryShow({ category: category.parent.id }).url}
                                     className="text-burgundy hover:underline"
                                 >
                                     {category.parent.name}
@@ -85,7 +86,7 @@ export default function CategoryShow({ category }: CategoryShowProps) {
                                         {children.map((child) => (
                                             <li key={child.id}>
                                                 <Link
-                                                    href={`/categories/${child.id}`}
+                                                    href={categoryShow({ category: child.id }).url}
                                                     className="text-burgundy hover:underline text-sm"
                                                 >
                                                     {child.name}
@@ -114,7 +115,7 @@ export default function CategoryShow({ category }: CategoryShowProps) {
                                         {products.map((product) => (
                                             <li key={product.id}>
                                                 <Link
-                                                    href={`/products/${product.id}`}
+                                                    href={productShow({ product: product.id }).url}
                                                     className="text-burgundy hover:underline text-sm"
                                                 >
                                                     {product.title}
@@ -157,7 +158,7 @@ export default function CategoryShow({ category }: CategoryShowProps) {
                                 Voir les produits (catégorie)
                             </Button>
                         </Link>
-                        <Link href={`/categories/${category.id}/edit`}>
+                        <Link href={categoryEdit({ category: category.id }).url}>
                             <Button variant="outline" className="border-gray-300">
                                 Edit category
                             </Button>

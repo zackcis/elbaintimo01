@@ -13,50 +13,61 @@ class Category extends Model
     use HasFactory;
 
     /**
-     * The attributes that are mass assignable.
-     *
      * @var list<string>
      */
     protected $fillable = [
-        'name',
         'parent_id',
     ];
 
     /**
-     * Get the parent category.
+     * Accessor-backed label for admin UI / Inertia JSON (no `name` column).
+     *
+     * @var list<string>
      */
+    protected $appends = [
+        'name',
+    ];
+
     public function parent(): BelongsTo
     {
         return $this->belongsTo(Category::class, 'parent_id');
     }
 
-    /**
-     * Get the child categories.
-     */
     public function children(): HasMany
     {
         return $this->hasMany(Category::class, 'parent_id');
     }
 
-    /**
-     * Get the products for the category.
-     */
     public function products(): HasMany
     {
         return $this->hasMany(Product::class);
     }
 
-    /**
-     * Get the images for the category.
-     */
     public function images(): HasMany
     {
         return $this->hasMany(CategoryImage::class);
     }
 
+    public function translations(): HasMany
+    {
+        return $this->hasMany(CategoryTranslation::class);
+    }
+
+    public function nameForLocale(string $locale): string
+    {
+        if ($this->relationLoaded('translations')) {
+            return (string) ($this->translations->firstWhere('locale', $locale)?->name ?? '');
+        }
+
+        return (string) ($this->translations()->where('locale', $locale)->value('name') ?? '');
+    }
+
+    public function getNameAttribute(): string
+    {
+        return $this->nameForLocale((string) config('harimi.admin_list_locale', 'it'));
+    }
+
     /**
-     * All category IDs in this node's subtree (not including the node itself).
-     *
      * @return list<int>
      */
     public static function descendantIds(int $categoryId): array
@@ -82,9 +93,6 @@ class Category extends Model
     }
 
     /**
-     * Flat options for a parent select: tree order, indented labels.
-     * When editing, pass the category id to exclude itself and its descendants (no cycles).
-     *
      * @return list<array{id: int, label: string}>
      */
     public static function parentSelectOptions(?int $excludeCategoryId = null): array
@@ -95,7 +103,11 @@ class Category extends Model
         }
         $excludeSet = array_flip($exclude);
 
-        $categories = static::query()->orderBy('name')->get(['id', 'name', 'parent_id']);
+        $locale = (string) config('harimi.admin_list_locale', 'it');
+
+        $categories = static::query()
+            ->with('translations')
+            ->get(['id', 'parent_id']);
 
         $byParent = [];
         foreach ($categories as $c) {
@@ -103,19 +115,19 @@ class Category extends Model
             $byParent[$pid][] = $c;
         }
         foreach ($byParent as &$list) {
-            usort($list, fn (self $a, self $b) => strcmp($a->name, $b->name));
+            usort($list, fn (self $a, self $b) => strcmp($a->nameForLocale($locale), $b->nameForLocale($locale)));
         }
         unset($list);
 
         $options = [];
-        $walk = function (int $parentId, int $depth) use (&$walk, &$options, $byParent, $excludeSet): void {
+        $walk = function (int $parentId, int $depth) use (&$walk, &$options, $byParent, $excludeSet, $locale): void {
             foreach ($byParent[$parentId] ?? [] as $cat) {
                 if (isset($excludeSet[$cat->id])) {
                     continue;
                 }
                 $options[] = [
                     'id' => (int) $cat->id,
-                    'label' => str_repeat('— ', $depth).$cat->name,
+                    'label' => str_repeat('— ', $depth).$cat->nameForLocale($locale),
                 ];
                 $walk((int) $cat->id, $depth + 1);
             }
@@ -126,29 +138,29 @@ class Category extends Model
     }
 
     /**
-     * Build a nested array of categories for trees (e.g. admin index).
-     *
      * @return list<array<string, mixed>>
      */
     public static function nestedTree(Collection $all, ?int $parentId = null): array
     {
+        $locale = (string) config('harimi.admin_list_locale', 'it');
+
         return $all
             ->filter(fn (self $c) => $c->parent_id === $parentId)
-            ->sortBy('name', SORT_NATURAL | SORT_FLAG_CASE)
+            ->sortBy(fn (self $c) => $c->nameForLocale($locale), SORT_NATURAL | SORT_FLAG_CASE)
             ->values()
-            ->map(function (self $cat) use ($all) {
+            ->map(function (self $cat) use ($all, $locale) {
                 $parentMeta = null;
                 if ($cat->parent_id !== null) {
                     $parentRow = $all->firstWhere('id', $cat->parent_id);
                     $parentMeta = [
                         'id' => $cat->parent_id,
-                        'name' => $parentRow ? (string) $parentRow->name : '',
+                        'name' => $parentRow ? $parentRow->nameForLocale($locale) : '',
                     ];
                 }
 
                 return [
                     'id' => $cat->id,
-                    'name' => $cat->name,
+                    'name' => $cat->nameForLocale($locale),
                     'parent_id' => $cat->parent_id,
                     'parent' => $parentMeta,
                     'images' => $cat->images,

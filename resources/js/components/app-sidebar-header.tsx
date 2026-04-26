@@ -1,5 +1,6 @@
 /* REDESIGN: updated for HARIMI UI refresh — kept props unchanged */
 import { Breadcrumbs } from '@/components/breadcrumbs';
+import { LocaleSwitcher } from '@/components/locale-switcher';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { type BreadcrumbItem as BreadcrumbItemType } from '@/types';
 
@@ -10,10 +11,11 @@ export function AppSidebarHeader({
 }) {
     return (
         <header className="flex h-14 shrink-0 items-center gap-2 border-b border-sidebar-border/50 bg-beige/50 px-6 shadow-sm transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12 md:px-4">
-            <div className="flex items-center gap-2">
+            <div className="flex min-w-0 flex-1 items-center gap-2">
                 <SidebarTrigger className="-ml-1" />
                 <Breadcrumbs breadcrumbs={breadcrumbs} />
             </div>
+            <LocaleSwitcher className="shrink-0" />
         </header>
     );
 }

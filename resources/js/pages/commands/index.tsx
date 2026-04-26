@@ -3,10 +3,10 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import AppLayout from '@/layouts/app-layout';
+import { useUi } from '@/hooks/use-ui';
 import { dashboard } from '@/routes';
+import { create as commandsCreate, destroy as commandDestroy, index as commandsIndex, invoice as commandInvoice, show as commandShow } from '@/routes/commands';
 import { type BreadcrumbItem } from '@/types';
-
-const commandsIndex = () => ({ url: '/commands' });
 import { Head, Link, router } from '@inertiajs/react';
 import { FileText, Plus, Search, Eye, Edit, Trash2, Download } from 'lucide-react';
 import { useState, useEffect } from 'react';
@@ -15,17 +15,6 @@ import { useToast } from '@/hooks/use-toast';
 import { ToastContainer } from '@/components/toast';
 import { ConfirmationDialog } from '@/components/confirmation-dialog';
 import { EmptyState } from '@/components/empty-state';
-
-const breadcrumbs: BreadcrumbItem[] = [
-    {
-        title: 'Dashboard',
-        href: dashboard().url,
-    },
-    {
-        title: 'Commandes',
-        href: commandsIndex().url,
-    },
-];
 
 interface CommandItem {
     id: number;
@@ -41,6 +30,7 @@ interface Command {
     reference: string;
     client_name: string;
     client_email: string;
+    fulfillment_type?: 'pickup' | 'ship';
     status: 'pending' | 'confirmed' | 'shipped' | 'cancelled';
     total_amount: string;
     notes: string | null;
@@ -66,7 +56,14 @@ interface CommandsProps {
 }
 
 export default function CommandsIndex({ commands }: CommandsProps) {
+    const { t, locale } = useUi();
+    const dateLocale = locale === 'it' ? 'it-IT' : 'en-US';
     const toast = useToast();
+    const breadcrumbs: BreadcrumbItem[] = [
+        { title: t('breadcrumb.dashboard'), href: dashboard().url },
+        { title: t('commands.title'), href: commandsIndex().url },
+    ];
+
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; commandId: number | null }>({
@@ -97,17 +94,20 @@ export default function CommandsIndex({ commands }: CommandsProps) {
     const getStatusLabel = (status: string) => {
         switch (status) {
             case 'pending':
-                return 'En attente';
+                return t('commands.status.pending');
             case 'confirmed':
-                return 'Confirmée';
+                return t('commands.status.confirmed');
             case 'shipped':
-                return 'Expédiée';
+                return t('commands.status.shipped');
             case 'cancelled':
-                return 'Annulée';
+                return t('commands.status.cancelled');
             default:
                 return status;
         }
     };
+
+    const getFulfillmentLabel = (ft?: string) =>
+        ft === 'ship' ? t('invoice.ship') : t('invoice.pickup');
 
     const filteredCommands = commands.data.filter((command) =>
         command.reference.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -121,9 +121,9 @@ export default function CommandsIndex({ commands }: CommandsProps) {
 
     const confirmDelete = () => {
         if (deleteDialog.commandId) {
-            router.delete(`/commands/${deleteDialog.commandId}`, {
+            router.delete(commandDestroy.url({ command: deleteDialog.commandId }), {
                 onSuccess: () => {
-                    toast.success('Commande supprimée avec succès.');
+                    toast.success(t('commands.deleted_success'));
                 },
             });
         }
@@ -131,15 +131,15 @@ export default function CommandsIndex({ commands }: CommandsProps) {
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title="Commandes - HARIMI" />
+            <Head title={`${t('commands.title')} - HARIMI`} />
             <ToastContainer toasts={toast.toasts} onClose={toast.removeToast} />
             <ConfirmationDialog
                 open={deleteDialog.open}
                 onClose={() => setDeleteDialog({ open: false, commandId: null })}
                 onConfirm={confirmDelete}
-                title="Supprimer la commande"
-                description="Êtes-vous sûr de vouloir supprimer cette commande ? Cette action est irréversible."
-                confirmText="Supprimer"
+                title={t('commands.delete_title')}
+                description={t('commands.delete_desc')}
+                confirmText={t('common.delete')}
                 variant="destructive"
             />
             <div className="flex h-full flex-1 flex-col gap-6 p-8 bg-gray-50">
@@ -147,16 +147,16 @@ export default function CommandsIndex({ commands }: CommandsProps) {
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div>
                         <h1 className="text-3xl font-semibold text-gray-900 mb-1">
-                            Commandes
+                            {t('commands.title')}
                         </h1>
                         <p className="text-sm text-gray-600">
-                            {commands.total} commande{commands.total !== 1 ? 's' : ''} au total
+                            {commands.total} {t('commands.total_suffix')}
                         </p>
                     </div>
-                    <Link href="/commands/create">
+                    <Link href={commandsCreate().url}>
                         <Button className="bg-burgundy text-white hover:bg-burgundy-dark font-medium">
                             <Plus className="h-4 w-4 mr-2" />
-                            Nouvelle commande
+                            {t('commands.create')}
                         </Button>
                     </Link>
                 </div>
@@ -166,7 +166,7 @@ export default function CommandsIndex({ commands }: CommandsProps) {
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                     <input
                         type="text"
-                        placeholder="Rechercher par référence, client..."
+                        placeholder={t('commands.search_placeholder')}
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         className="w-full pl-10 pr-4 py-2 border border-border/80 rounded-lg focus:ring-2 focus:ring-burgundy/20 focus:border-burgundy bg-white text-sm"
@@ -181,10 +181,10 @@ export default function CommandsIndex({ commands }: CommandsProps) {
                         <CardContent>
                             <EmptyState
                                 icon={FileText}
-                                title="Aucune commande"
-                                description="Aucune commande pour le moment. Les commandes apparaîtront ici dès qu'un client passe commande."
-                                actionLabel="Créer une commande"
-                                actionHref="/commands/create"
+                                title={t('commands.empty_title')}
+                                description={t('commands.empty_desc')}
+                                actionLabel={t('commands.create')}
+                                actionHref={commandsCreate().url}
                             />
                         </CardContent>
                     </Card>
@@ -195,22 +195,22 @@ export default function CommandsIndex({ commands }: CommandsProps) {
                                 <thead className="bg-gray-50 border-b border-border/80">
                                     <tr>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
-                                            Référence
+                                            {t('invoice.reference')}
                                         </th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
-                                            Client
+                                            {t('invoice.client')}
                                         </th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
-                                            Statut
+                                            {t('invoice.status')}
                                         </th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
-                                            Montant
+                                            {t('invoice.total')}
                                         </th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
-                                            Date
+                                            {t('invoice.date')}
                                         </th>
                                         <th className="px-6 py-3 text-right text-xs font-medium text-gray-600 uppercase tracking-wider">
-                                            Actions
+                                            {t('common.actions')}
                                         </th>
                                     </tr>
                                 </thead>
@@ -234,6 +234,11 @@ export default function CommandsIndex({ commands }: CommandsProps) {
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
+                                                <span className="text-xs font-medium text-gray-700">
+                                                    {getFulfillmentLabel(command.fulfillment_type)}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
                                                 <Badge
                                                     className={`${getStatusColor(command.status)} border font-medium text-xs`}
                                                 >
@@ -242,33 +247,33 @@ export default function CommandsIndex({ commands }: CommandsProps) {
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <span className="text-sm font-semibold text-gray-900">
-                                                    {parseFloat(command.total_amount).toLocaleString('fr-FR', {
+                                                    {parseFloat(command.total_amount).toLocaleString(dateLocale, {
                                                         style: 'currency',
                                                         currency: 'EUR',
                                                     })}
                                                 </span>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                {new Date(command.created_at).toLocaleDateString('fr-FR')}
+                                                {new Date(command.created_at).toLocaleDateString(dateLocale)}
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                                 <div className="flex items-center justify-end gap-2">
-                                                    <Link href={`/commands/${command.id}`}>
+                                                    <Link href={commandShow({ command: command.id }).url}>
                                                         <Button
                                                             variant="ghost"
                                                             size="sm"
                                                             className="h-8 w-8 p-0"
-                                                            title="Voir"
+                                                            title={t('common.view')}
                                                         >
                                                             <Eye className="h-4 w-4" />
                                                         </Button>
                                                     </Link>
-                                                    <Link href={`/commands/${command.id}/invoice`}>
+                                                    <Link href={commandInvoice({ command: command.id }).url}>
                                                         <Button
                                                             variant="ghost"
                                                             size="sm"
                                                             className="h-8 w-8 p-0"
-                                                            title="Bon de commande"
+                                                            title={t('commands.invoice')}
                                                         >
                                                             <Download className="h-4 w-4" />
                                                         </Button>
@@ -278,7 +283,7 @@ export default function CommandsIndex({ commands }: CommandsProps) {
                                                         size="sm"
                                                         onClick={() => handleDelete(command.id)}
                                                         className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-                                                        title="Supprimer"
+                                                        title={t('common.delete')}
                                                     >
                                                         <Trash2 className="h-4 w-4" />
                                                     </Button>
@@ -294,7 +299,7 @@ export default function CommandsIndex({ commands }: CommandsProps) {
                         {commands.last_page > 1 && (
                             <div className="px-6 py-4 border-t border-border/80 flex items-center justify-between">
                                 <div className="text-sm text-gray-600">
-                                    Affichage de {commands.data.length} sur {commands.total} commandes
+                                    {t('commands.pagination_showing')} {commands.data.length} / {commands.total}
                                 </div>
                                 <div className="flex gap-2">
                                     {commands.links.map((link, index) => {

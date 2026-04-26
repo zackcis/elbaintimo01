@@ -8,17 +8,12 @@ use Illuminate\Validation\Rule;
 
 class UpdateCategoryRequest extends FormRequest
 {
-    /**
-     * Determine if the user is authorized to make this request.
-     */
     public function authorize(): bool
     {
         return true;
     }
 
     /**
-     * Get the validation rules that apply to the request.
-     *
      * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
      */
     public function rules(): array
@@ -31,15 +26,16 @@ class UpdateCategoryRequest extends FormRequest
         );
 
         return [
-            'name' => ['required', 'string', 'max:255'],
+            'name.it' => ['required', 'string', 'max:255'],
+            'name.en' => ['required', 'string', 'max:255'],
             'parent_id' => [
                 'nullable',
                 'exists:categories,id',
                 Rule::notIn($forbiddenParentIds),
             ],
             'images' => ['nullable', 'array'],
-            'images.*.file' => ['nullable', 'image', 'mimes:jpeg,png,jpg,gif,webp', 'max:5120'], // 5MB max
-            'images.*.path' => ['nullable', 'string'], // For existing images
+            'images.*.file' => ['nullable', 'image', 'mimes:jpeg,png,jpg,gif,webp', 'max:5120'],
+            'images.*.path' => ['nullable', 'string'],
         ];
     }
 }

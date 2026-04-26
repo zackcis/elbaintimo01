@@ -1,24 +1,14 @@
 /* REDESIGN: updated for HARIMI UI refresh — kept props unchanged */
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useUi } from '@/hooks/use-ui';
 import AppLayout from '@/layouts/app-layout';
 import { dashboard } from '@/routes';
-import { index as clients } from '@/routes/clients';
+import { index as clientsRoute } from '@/routes/clients';
 import { type BreadcrumbItem, type User } from '@/types';
 import { Head, Link } from '@inertiajs/react';
 import { Users, Mail, Phone, MapPin, Calendar } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { ProductListSkeleton } from '@/components/skeleton-loaders';
-
-const breadcrumbs: BreadcrumbItem[] = [
-    {
-        title: 'Dashboard',
-        href: dashboard().url,
-    },
-    {
-        title: 'Clients',
-        href: clients().url,
-    },
-];
 
 interface ClientsData {
     data: User[];
@@ -38,6 +28,13 @@ interface ClientsProps {
 }
 
 export default function ClientsIndex({ clients }: ClientsProps) {
+    const { t, locale } = useUi();
+    const dateLocale = locale === 'it' ? 'it-IT' : 'en-US';
+    const breadcrumbs: BreadcrumbItem[] = [
+        { title: t('breadcrumb.dashboard'), href: dashboard().url },
+        { title: t('clients.title'), href: clientsRoute().url },
+    ];
+
     const [isLoading, setIsLoading] = useState(true);
 
     // Demo loading delay
@@ -49,7 +46,7 @@ export default function ClientsIndex({ clients }: ClientsProps) {
     }, []);
 
     const formatDate = (dateString: string) => {
-        return new Date(dateString).toLocaleDateString('en-US', {
+        return new Date(dateString).toLocaleDateString(dateLocale, {
             year: 'numeric',
             month: 'short',
             day: 'numeric',
@@ -67,14 +64,14 @@ export default function ClientsIndex({ clients }: ClientsProps) {
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title="Clients - HARIMI" />
+            <Head title={`${t('clients.title')} - HARIMI`} />
             <div className="flex h-full flex-1 flex-col gap-8 p-6 bg-beige-light">
                 <div className="flex flex-col gap-3">
                     <h1 className="text-4xl font-serif font-bold tracking-tight text-burgundy">
-                        Clients
+                        {t('clients.title')}
                     </h1>
                     <p className="text-base text-gray-700 font-sans">
-                        Manage your client database ({clients.total} clients)
+                        {t('clients.subtitle')} ({clients.total} {t('clients.title').toLowerCase()})
                     </p>
                 </div>
 
@@ -85,10 +82,10 @@ export default function ClientsIndex({ clients }: ClientsProps) {
                         <CardContent className="flex flex-col items-center justify-center py-16 bg-white">
                             <Users className="h-16 w-16 text-gray-300 mb-4" />
                             <p className="text-xl font-serif font-semibold mb-2 text-burgundy">
-                                No clients found
+                                {t('clients.empty_title')}
                             </p>
                             <p className="text-sm text-gray-600 font-sans">
-                                Clients will appear here once they register.
+                                {t('clients.empty_desc')}
                             </p>
                         </CardContent>
                     </Card>
@@ -153,7 +150,7 @@ export default function ClientsIndex({ clients }: ClientsProps) {
                                         <div className="flex items-center gap-3 text-sm pt-3 border-t border-gray-100">
                                             <Calendar className="h-4 w-4 text-gray-400 flex-shrink-0" />
                                             <span className="text-gray-600 font-sans text-xs uppercase tracking-wide">
-                                                Joined{' '}
+                                                {t('clients.joined')}{' '}
                                                 {formatDate(client.created_at)}
                                             </span>
                                         </div>

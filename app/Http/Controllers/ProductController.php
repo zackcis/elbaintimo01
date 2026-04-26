@@ -13,7 +13,6 @@ use App\Traits\HandlesImageUploads;
 use App\Traits\LogsActivity;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -21,17 +20,17 @@ class ProductController extends Controller
 {
     use HandlesImageUploads, LogsActivity;
 
-    /**
-     * Display a listing of the resource.
-     */
     public function index(Request $request): Response
     {
         $validated = $request->validate([
             'brand' => ['nullable', 'integer', 'exists:brands,id'],
             'category' => ['nullable', 'integer', 'exists:categories,id'],
+            'tissu' => ['nullable', 'string', 'max:255'],
         ]);
 
-        $query = Product::with(['category', 'brand', 'variants', 'images'])->latest();
+        $query = Product::query()
+            ->with(['category.translations', 'brand.translations', 'translations', 'variants', 'images'])
+            ->latest();
 
         if (! empty($validated['brand'])) {
             $query->where('brand_id', $validated['brand']);
@@ -41,38 +40,50 @@ class ProductController extends Controller
             $query->where('category_id', $validated['category']);
         }
 
+        $tissuFilter = isset($validated['tissu']) ? trim((string) $validated['tissu']) : '';
+        if ($tissuFilter !== '') {
+            $query->where('tissu', $tissuFilter);
+        }
+
         $products = $query->paginate(12)->withQueryString();
+
+        $tissuOptions = Product::query()
+            ->whereNotNull('tissu')
+            ->where('tissu', '!=', '')
+            ->distinct()
+            ->orderBy('tissu')
+            ->pluck('tissu')
+            ->values();
 
         $filterBrand = null;
         if (! empty($validated['brand'])) {
-            $b = Brand::query()->find($validated['brand']);
+            $b = Brand::query()->with('translations')->find($validated['brand']);
             $filterBrand = $b ? ['id' => $b->id, 'name' => $b->name] : null;
         }
 
         $filterCategory = null;
         if (! empty($validated['category'])) {
-            $c = Category::query()->find($validated['category']);
+            $c = Category::query()->with('translations')->find($validated['category']);
             $filterCategory = $c ? ['id' => $c->id, 'name' => $c->name] : null;
         }
 
         return Inertia::render('products/index', [
             'products' => $products,
+            'tissuOptions' => $tissuOptions,
             'filters' => [
                 'brand_id' => $validated['brand'] ?? null,
                 'category_id' => $validated['category'] ?? null,
+                'tissu' => $tissuFilter !== '' ? $tissuFilter : null,
                 'brand' => $filterBrand,
                 'category' => $filterCategory,
             ],
         ]);
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
     public function create(): Response
     {
-        $categories = Category::orderBy('name')->get();
-        $brands = Brand::orderBy('name')->get();
+        $categories = Category::query()->with('translations')->get()->sortBy('name')->values();
+        $brands = Brand::query()->with('translations')->get()->sortBy('name')->values();
 
         return Inertia::render('products/create', [
             'categories' => $categories,
@@ -80,57 +91,70 @@ class ProductController extends Controller
         ]);
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
     public function store(StoreProductRequest $request): RedirectResponse
     {
-        $brandId = $request->brand_id;
+        $brandId = $request->input('brand_id');
 
-        if (! empty($request->new_brand_name)) {
-            $logoPath = null;
-            if ($request->hasFile('new_brand_logo') && $request->file('new_brand_logo')->isValid()) {
-                $logoPath = $this->storeImage($request->file('new_brand_logo'), 'brands');
+        if (! $request->filled('brand_id')) {
+            $it = $request->input('new_brand_name.it');
+            $en = $request->input('new_brand_name.en');
+            if (filled($it) && filled($en)) {
+                $logoPath = null;
+                if ($request->hasFile('new_brand_logo') && $request->file('new_brand_logo')->isValid()) {
+                    $logoPath = $this->storeImage($request->file('new_brand_logo'), 'brands');
+                }
+                $brand = Brand::create([
+                    'logo' => $logoPath,
+                ]);
+                foreach (config('harimi.locales', ['it', 'en']) as $loc) {
+                    $brand->translations()->create([
+                        'locale' => $loc,
+                        'name' => (string) $request->input("new_brand_name.$loc"),
+                    ]);
+                }
+                $brandId = $brand->id;
+                $this->logActivity('created', 'Brand', $brand->id, "Marque '{$brand->name}' créée (via produit)");
             }
-            $brand = Brand::create([
-                'name' => $request->new_brand_name,
-                'logo' => $logoPath,
-            ]);
-            $brandId = $brand->id;
-            $this->logActivity('created', 'Brand', $brand->id, "Marque '{$brand->name}' créée (via produit)");
         }
 
+        $tissuRaw = $request->input('tissu');
+        $tissu = is_string($tissuRaw) && trim($tissuRaw) !== '' ? trim($tissuRaw) : null;
+
         $product = Product::create([
-            'title' => $request->title,
-            'description' => $request->description,
-            'category_id' => $request->category_id,
-            'brand_id' => $brandId,
+            'category_id' => (int) $request->validated('category_id'),
+            'brand_id' => $brandId ? (int) $brandId : null,
+            'tissu' => $tissu,
         ]);
 
-        // Create variants
-        foreach ($request->variants as $variantData) {
+        foreach (config('harimi.locales', ['it', 'en']) as $loc) {
+            $product->translations()->create([
+                'locale' => $loc,
+                'title' => (string) $request->input("title.$loc"),
+                'description' => $request->input("description.$loc"),
+            ]);
+        }
+
+        foreach ($request->validated('variants') as $variantData) {
             ProductVariant::create([
                 'product_id' => $product->id,
                 'size' => $variantData['size'] ?? null,
                 'color' => $variantData['color'] ?? null,
+                'color_hex' => $this->normalizeHexColor($variantData['color_hex'] ?? null),
                 'price' => $variantData['price'],
                 'stock' => $variantData['stock'],
             ]);
         }
 
-        // Create images
         if ($request->has('images') && is_array($request->images)) {
             foreach ($request->images as $index => $imageData) {
                 $imagePath = null;
 
-                // Handle file upload
                 if (isset($imageData['file']) && $imageData['file']) {
                     $file = $request->file("images.{$index}.file");
                     if ($file && $file->isValid()) {
                         $imagePath = $this->storeImage($file, 'products');
                     }
                 } elseif (isset($imageData['path']) && $imageData['path']) {
-                    // Use existing path
                     $imagePath = $imageData['path'];
                 }
 
@@ -145,23 +169,27 @@ class ProductController extends Controller
             }
         }
 
+        $product->load('translations');
         $this->logActivity('created', 'Product', $product->id, "Produit '{$product->title}' créé");
 
         return redirect()->route('products.index')
             ->with('success', 'Product created successfully.');
     }
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(Product $product): Response
+    public function show(string $locale, Product $product): Response
     {
-        $product->load(['category', 'brand', 'variants', 'images']);
+        $product->load([
+            'category.translations',
+            'brand.translations',
+            'translations',
+            'variants',
+            'images',
+        ]);
 
-        // Get related products from the same brand (excluding current product)
-        $relatedProducts = Product::where('brand_id', $product->brand_id)
+        $relatedProducts = Product::query()
+            ->where('brand_id', $product->brand_id)
             ->where('id', '!=', $product->id)
-            ->with(['category', 'variants', 'images'])
+            ->with(['category.translations', 'translations', 'variants', 'images'])
             ->latest()
             ->limit(8)
             ->get();
@@ -172,14 +200,17 @@ class ProductController extends Controller
         ]);
     }
 
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(Product $product): Response
+    public function edit(string $locale, Product $product): Response
     {
-        $product->load(['category', 'brand', 'variants', 'images']);
-        $categories = Category::orderBy('name')->get();
-        $brands = Brand::orderBy('name')->get();
+        $product->load([
+            'category.translations',
+            'brand.translations',
+            'translations',
+            'variants',
+            'images',
+        ]);
+        $categories = Category::query()->with('translations')->get()->sortBy('name')->values();
+        $brands = Brand::query()->with('translations')->get()->sortBy('name')->values();
 
         return Inertia::render('products/edit', [
             'product' => $product,
@@ -188,48 +219,64 @@ class ProductController extends Controller
         ]);
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(UpdateProductRequest $request, Product $product): RedirectResponse
+    public function update(UpdateProductRequest $request, string $locale, Product $product): RedirectResponse
     {
-        $brandId = $request->brand_id;
+        $brandId = $request->input('brand_id');
 
-        if (! empty($request->new_brand_name)) {
-            $logoPath = null;
-            if ($request->hasFile('new_brand_logo') && $request->file('new_brand_logo')->isValid()) {
-                $logoPath = $this->storeImage($request->file('new_brand_logo'), 'brands');
+        if (! $request->filled('brand_id')) {
+            $it = $request->input('new_brand_name.it');
+            $en = $request->input('new_brand_name.en');
+            if (filled($it) && filled($en)) {
+                $logoPath = null;
+                if ($request->hasFile('new_brand_logo') && $request->file('new_brand_logo')->isValid()) {
+                    $logoPath = $this->storeImage($request->file('new_brand_logo'), 'brands');
+                }
+                $brand = Brand::create([
+                    'logo' => $logoPath,
+                ]);
+                foreach (config('harimi.locales', ['it', 'en']) as $loc) {
+                    $brand->translations()->create([
+                        'locale' => $loc,
+                        'name' => (string) $request->input("new_brand_name.$loc"),
+                    ]);
+                }
+                $brandId = $brand->id;
+                $this->logActivity('created', 'Brand', $brand->id, "Marque '{$brand->name}' créée (via produit)");
             }
-            $brand = Brand::create([
-                'name' => $request->new_brand_name,
-                'logo' => $logoPath,
-            ]);
-            $brandId = $brand->id;
-            $this->logActivity('created', 'Brand', $brand->id, "Marque '{$brand->name}' créée (via produit)");
         }
 
+        $tissuRaw = $request->input('tissu');
+        $tissu = is_string($tissuRaw) && trim($tissuRaw) !== '' ? trim($tissuRaw) : null;
+
         $product->update([
-            'title' => $request->title,
-            'description' => $request->description,
-            'category_id' => $request->category_id,
-            'brand_id' => $brandId,
+            'category_id' => (int) $request->validated('category_id'),
+            'brand_id' => $brandId ? (int) $brandId : null,
+            'tissu' => $tissu,
         ]);
 
-        // Delete existing variants
+        foreach (config('harimi.locales', ['it', 'en']) as $loc) {
+            $product->translations()->updateOrCreate(
+                ['locale' => $loc],
+                [
+                    'title' => (string) $request->input("title.$loc"),
+                    'description' => $request->input("description.$loc"),
+                ],
+            );
+        }
+
         $product->variants()->delete();
 
-        // Create new variants
-        foreach ($request->variants as $variantData) {
+        foreach ($request->validated('variants') as $variantData) {
             ProductVariant::create([
                 'product_id' => $product->id,
                 'size' => $variantData['size'] ?? null,
                 'color' => $variantData['color'] ?? null,
+                'color_hex' => $this->normalizeHexColor($variantData['color_hex'] ?? null),
                 'price' => $variantData['price'],
                 'stock' => $variantData['stock'],
             ]);
         }
 
-        // Handle image updates - delete old images that are not in the new list
         $existingImageIds = collect($request->images ?? [])
             ->pluck('id')
             ->filter()
@@ -244,24 +291,20 @@ class ProductController extends Controller
             $image->delete();
         }
 
-        // Create/update images
         if ($request->has('images') && is_array($request->images)) {
             foreach ($request->images as $index => $imageData) {
                 $imagePath = null;
 
-                // Handle file upload
                 if (isset($imageData['file']) && $imageData['file']) {
                     $file = $request->file("images.{$index}.file");
                     if ($file && $file->isValid()) {
                         $imagePath = $this->storeImage($file, 'products');
                     }
                 } elseif (isset($imageData['path']) && $imageData['path']) {
-                    // Use existing path
                     $imagePath = $imageData['path'];
                 }
 
                 if ($imagePath) {
-                    // Update existing or create new
                     if (isset($imageData['id']) && $imageData['id']) {
                         ProductImage::where('id', $imageData['id'])
                             ->update([
@@ -281,17 +324,16 @@ class ProductController extends Controller
             }
         }
 
+        $product->load('translations');
         $this->logActivity('updated', 'Product', $product->id, "Produit '{$product->title}' modifié");
 
         return redirect()->route('products.index')
             ->with('success', 'Product updated successfully.');
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(Product $product): RedirectResponse
+    public function destroy(string $locale, Product $product): RedirectResponse
     {
+        $product->load('translations');
         $title = $product->title;
         $product->delete();
 
@@ -299,5 +341,19 @@ class ProductController extends Controller
 
         return redirect()->route('products.index')
             ->with('success', 'Product deleted successfully.');
+    }
+
+    private function normalizeHexColor(mixed $hex): ?string
+    {
+        if (! is_string($hex)) {
+            return null;
+        }
+
+        $trimmed = trim($hex);
+        if ($trimmed === '') {
+            return null;
+        }
+
+        return strtoupper($trimmed);
     }
 }

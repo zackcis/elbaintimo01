@@ -16,13 +16,27 @@ class ProductSeeder extends Seeder
      */
     public function run(): void
     {
-        // Get categories
-        $womensDresses = Category::where('name', 'Dresses')->first();
-        $womensTops = Category::where('name', 'Tops')->first();
-        $womensBottoms = Category::where('name', 'Bottoms')->first();
-        $mensTops = Category::where('name', 'T-Shirts & Shirts')->first();
-        $mensBottoms = Category::where('name', 'Pants & Shorts')->first();
-        $bags = Category::where('name', 'Bags')->first();
+        $womensDresses = $this->categoryByLocalizedName('Dresses');
+        $womensTops = $this->categoryByLocalizedName('Tops');
+        $womensBottoms = $this->categoryByLocalizedName('Bottoms');
+        $mensTops = $this->categoryByLocalizedName('T-Shirts & Shirts');
+        $mensBottoms = $this->categoryByLocalizedName('Pants & Shorts');
+        $bags = $this->categoryByLocalizedName('Bags');
+
+        foreach (
+            [
+                'Dresses' => $womensDresses,
+                'Tops' => $womensTops,
+                'Bottoms' => $womensBottoms,
+                'T-Shirts & Shirts' => $mensTops,
+                'Pants & Shorts' => $mensBottoms,
+                'Bags' => $bags,
+            ] as $label => $cat
+        ) {
+            if ($cat === null) {
+                throw new \RuntimeException("Category not found for label: {$label}. Run CategorySeeder first.");
+            }
+        }
 
         // Get brands
         $brands = Brand::all();
@@ -43,7 +57,8 @@ class ProductSeeder extends Seeder
                 ['size' => 'S', 'color' => 'Red', 'price' => 129.99, 'stock' => 15],
                 ['size' => 'M', 'color' => 'Red', 'price' => 129.99, 'stock' => 18],
             ],
-            3
+            3,
+            'Satin',
         );
 
         $this->createProductWithVariants(
@@ -59,7 +74,8 @@ class ProductSeeder extends Seeder
                 ['size' => 'M', 'color' => 'Blue', 'price' => 49.99, 'stock' => 30],
                 ['size' => 'L', 'color' => 'Blue', 'price' => 49.99, 'stock' => 25],
             ],
-            4
+            4,
+            'Coton',
         );
 
         // Create Women's Tops
@@ -75,7 +91,8 @@ class ProductSeeder extends Seeder
                 ['size' => 'S', 'color' => 'Pink', 'price' => 79.99, 'stock' => 15],
                 ['size' => 'M', 'color' => 'Pink', 'price' => 79.99, 'stock' => 20],
             ],
-            2
+            2,
+            'Soie',
         );
 
         $this->createProductWithVariants(
@@ -92,7 +109,8 @@ class ProductSeeder extends Seeder
                 ['size' => 'M', 'color' => 'White', 'price' => 29.99, 'stock' => 50],
                 ['size' => 'L', 'color' => 'White', 'price' => 29.99, 'stock' => 45],
             ],
-            2
+            2,
+            'Coton',
         );
 
         // Create Women's Bottoms
@@ -109,7 +127,8 @@ class ProductSeeder extends Seeder
                 ['size' => '28', 'color' => 'Black', 'price' => 89.99, 'stock' => 20],
                 ['size' => '30', 'color' => 'Black', 'price' => 89.99, 'stock' => 25],
             ],
-            3
+            3,
+            'Denim',
         );
 
         // Create Men's Tops
@@ -126,7 +145,8 @@ class ProductSeeder extends Seeder
                 ['size' => 'M', 'color' => 'Blue', 'price' => 69.99, 'stock' => 30],
                 ['size' => 'L', 'color' => 'Blue', 'price' => 69.99, 'stock' => 28],
             ],
-            2
+            2,
+            'Coton',
         );
 
         $this->createProductWithVariants(
@@ -143,7 +163,8 @@ class ProductSeeder extends Seeder
                 ['size' => 'M', 'color' => 'Gray', 'price' => 24.99, 'stock' => 60],
                 ['size' => 'L', 'color' => 'Gray', 'price' => 24.99, 'stock' => 55],
             ],
-            2
+            2,
+            'Coton',
         );
 
         // Create Men's Bottoms
@@ -160,7 +181,8 @@ class ProductSeeder extends Seeder
                 ['size' => '32', 'color' => 'Navy', 'price' => 79.99, 'stock' => 30],
                 ['size' => '34', 'color' => 'Navy', 'price' => 79.99, 'stock' => 35],
             ],
-            2
+            2,
+            'Coton mélangé',
         );
 
         // Create Bags
@@ -174,7 +196,8 @@ class ProductSeeder extends Seeder
                 ['size' => null, 'color' => 'Brown', 'price' => 199.99, 'stock' => 12],
                 ['size' => null, 'color' => 'Red', 'price' => 199.99, 'stock' => 8],
             ],
-            3
+            3,
+            'Cuir',
         );
 
         $this->createProductWithVariants(
@@ -187,7 +210,8 @@ class ProductSeeder extends Seeder
                 ['size' => null, 'color' => 'Gray', 'price' => 79.99, 'stock' => 45],
                 ['size' => null, 'color' => 'Blue', 'price' => 79.99, 'stock' => 40],
             ],
-            2
+            2,
+            'Nylon',
         );
     }
 
@@ -200,15 +224,22 @@ class ProductSeeder extends Seeder
         string $title,
         string $description,
         array $variants,
-        int $imageCount = 2
+        int $imageCount = 2,
+        ?string $tissu = null,
     ): Product {
-        // Create the product
         $product = Product::create([
-            'title' => $title,
-            'description' => $description,
             'category_id' => $category->id,
             'brand_id' => $brand->id,
+            'tissu' => $tissu,
         ]);
+
+        foreach (config('harimi.locales', ['it', 'en']) as $loc) {
+            $product->translations()->create([
+                'locale' => $loc,
+                'title' => $title,
+                'description' => $description,
+            ]);
+        }
 
         // Create variants
         $primaryImage = true;
@@ -217,6 +248,7 @@ class ProductSeeder extends Seeder
                 'product_id' => $product->id,
                 'size' => $variant['size'],
                 'color' => $variant['color'],
+                'color_hex' => $this->seedHexForColor((string) $variant['color']),
                 'price' => $variant['price'],
                 'stock' => $variant['stock'],
             ]);
@@ -233,5 +265,31 @@ class ProductSeeder extends Seeder
         }
 
         return $product;
+    }
+
+    private function categoryByLocalizedName(string $name): ?Category
+    {
+        return Category::query()
+            ->whereHas('translations', function ($q) use ($name) {
+                $q->where('locale', config('harimi.admin_list_locale', 'it'))
+                    ->where('name', $name);
+            })
+            ->first();
+    }
+
+    private function seedHexForColor(string $color): string
+    {
+        return match (strtolower(trim($color))) {
+            'black' => '#000000',
+            'white' => '#FFFFFF',
+            'red' => '#E53935',
+            'blue' => '#1E88E5',
+            'pink' => '#EC407A',
+            'gray', 'grey' => '#757575',
+            'khaki' => '#C3B091',
+            'navy' => '#283593',
+            'brown' => '#6D4C41',
+            default => '#5E35B1',
+        };
     }
 }

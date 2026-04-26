@@ -23,7 +23,8 @@ class ProductVariantFactory extends Factory
         return [
             'product_id' => Product::factory(),
             'size' => fake()->randomElement($sizes),
-            'color' => fake()->randomElement($colors),
+            'color' => fake()->randomElement($colors) ?? 'Sample',
+            'color_hex' => '#'.strtoupper(str_pad(dechex(fake()->numberBetween(0, 0xFFFFFF)), 6, '0', STR_PAD_LEFT)),
             'price' => fake()->randomFloat(2, 9.99, 999.99),
             'stock' => fake()->numberBetween(0, 100),
         ];

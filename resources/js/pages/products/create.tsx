@@ -5,29 +5,20 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { useUi } from '@/hooks/use-ui';
 import AppLayout from '@/layouts/app-layout';
 import { dashboard } from '@/routes';
-import { index as products } from '@/routes/products';
+import { index as products, store as productsStore } from '@/routes/products';
 import { type BreadcrumbItem } from '@/types';
 import { Head, router, usePage } from '@inertiajs/react';
 import { Plus, Trash2 } from 'lucide-react';
-import { FormEvent, useState } from 'react';
+import { FormEvent, useMemo, useState } from 'react';
 import { MultipleImageUpload, SingleImageUpload } from '@/components/image-upload';
-
-const breadcrumbs: BreadcrumbItem[] = [
-    {
-        title: 'Dashboard',
-        href: dashboard().url,
-    },
-    {
-        title: 'Products',
-        href: products().url,
-    },
-    {
-        title: 'Create',
-        href: '#',
-    },
-];
+import {
+    type BrandMode,
+    validateProductBasics,
+    validateVariantRows,
+} from '@/lib/product-variant-client-validation';
 
 interface Category {
     id: number;
@@ -48,6 +39,7 @@ interface ProductFormProps {
 interface Variant {
     size: string;
     color: string;
+    color_hex: string;
     price: string;
     stock: string;
 }
@@ -61,22 +53,43 @@ interface Image {
     position: number;
 }
 
-type BrandMode = 'existing' | 'new';
+function validateCreateProductClient(
+    formData: FormData,
+    variantRows: Variant[],
+    mode: BrandMode,
+): Record<string, string> {
+    return { ...validateProductBasics(formData, mode), ...validateVariantRows(variantRows) };
+}
 
 export default function CreateProduct({ categories, brands }: ProductFormProps) {
+    const { t } = useUi();
     const page = usePage();
-    const errors = (page.props as { errors?: Record<string, string> }).errors || {};
+    const serverErrors = (page.props as { errors?: Record<string, string> }).errors || {};
+    const [clientErrors, setClientErrors] = useState<Record<string, string>>({});
+    const mergedErrors = useMemo(
+        () => ({ ...clientErrors, ...serverErrors }),
+        [clientErrors, serverErrors],
+    );
+    const fieldId = (key: string) => `field-${key.replace(/\./g, '-')}`;
 
     const [variants, setVariants] = useState<Variant[]>([
-        { size: '', color: '', price: '', stock: '' },
+        { size: '', color: '', color_hex: '', price: '', stock: '' },
     ]);
     const [images, setImages] = useState<Image[]>([]);
     const [brandMode, setBrandMode] = useState<BrandMode>('existing');
-    const [newBrandName, setNewBrandName] = useState('');
     const [newBrandLogo, setNewBrandLogo] = useState<File | null>(null);
 
+    const breadcrumbs: BreadcrumbItem[] = useMemo(
+        () => [
+            { title: t('breadcrumb.dashboard'), href: dashboard().url },
+            { title: t('products.title'), href: products().url },
+            { title: t('breadcrumb.create'), href: '#' },
+        ],
+        [t],
+    );
+
     const addVariant = () => {
-        setVariants([...variants, { size: '', color: '', price: '', stock: '' }]);
+        setVariants([...variants, { size: '', color: '', color_hex: '', price: '', stock: '' }]);
     };
 
     const removeVariant = (index: number) => {
@@ -93,20 +106,36 @@ export default function CreateProduct({ categories, brands }: ProductFormProps) 
     const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         const formData = new FormData(e.currentTarget);
-        
+        setClientErrors({});
+        const clientValidation = validateCreateProductClient(formData, variants, brandMode);
+        if (Object.keys(clientValidation).length > 0) {
+            setClientErrors(clientValidation);
+            const firstKey = Object.keys(clientValidation)[0];
+            const el = document.getElementById(fieldId(firstKey));
+            el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return;
+        }
+
         // Create FormData for file upload
         const uploadData = new FormData();
-        uploadData.append('title', formData.get('title') as string);
-        uploadData.append('description', (formData.get('description') as string) || '');
+        uploadData.append('title[it]', (formData.get('title[it]') as string) || '');
+        uploadData.append('title[en]', (formData.get('title[en]') as string) || '');
+        uploadData.append('description[it]', (formData.get('description[it]') as string) || '');
+        uploadData.append('description[en]', (formData.get('description[en]') as string) || '');
         uploadData.append('category_id', formData.get('category_id') as string);
+        const tissuVal = (formData.get('tissu') as string)?.trim();
+        if (tissuVal) {
+            uploadData.append('tissu', tissuVal);
+        }
 
         if (brandMode === 'existing') {
             const brandId = formData.get('brand_id');
             if (brandId) {
                 uploadData.append('brand_id', brandId as string);
             }
-        } else if (brandMode === 'new' && newBrandName.trim()) {
-            uploadData.append('new_brand_name', newBrandName.trim());
+        } else if (brandMode === 'new') {
+            uploadData.append('new_brand_name[it]', (formData.get('new_brand_name[it]') as string) || '');
+            uploadData.append('new_brand_name[en]', (formData.get('new_brand_name[en]') as string) || '');
             if (newBrandLogo) {
                 uploadData.append('new_brand_logo', newBrandLogo);
             }
@@ -116,6 +145,7 @@ export default function CreateProduct({ categories, brands }: ProductFormProps) 
         variants.forEach((v, index) => {
             uploadData.append(`variants[${index}][size]`, v.size || '');
             uploadData.append(`variants[${index}][color]`, v.color || '');
+            uploadData.append(`variants[${index}][color_hex]`, v.color_hex || '');
             uploadData.append(`variants[${index}][price]`, v.price);
             uploadData.append(`variants[${index}][stock]`, v.stock);
         });
@@ -129,47 +159,79 @@ export default function CreateProduct({ categories, brands }: ProductFormProps) 
             uploadData.append(`images[${index}][position]`, img.position.toString());
         });
         
-        router.post('/products', uploadData, {
+        router.post(productsStore.url(), uploadData, {
             forceFormData: true,
+            onSuccess: () => setClientErrors({}),
         });
     };
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title="Create Product - HARIMI" />
-            <div className="flex h-full flex-1 flex-col gap-6 p-6 bg-beige-light">
+            <Head title={`${t('products.create_title')} — HARIMI`} />
+            <div className="flex h-full flex-1 flex-col gap-6 bg-beige-light p-6">
                 <div className="flex flex-col gap-3">
-                    <h1 className="text-4xl font-serif font-bold tracking-tight text-burgundy">
-                        Create Product
+                    <h1 className="font-serif text-4xl font-bold tracking-tight text-burgundy">
+                        {t('products.create_title')}
                     </h1>
-                    <p className="text-base text-gray-700 font-sans">
-                        Add a new product to your catalog
-                    </p>
+                    <p className="font-sans text-base text-gray-700">{t('products.create_subtitle')}</p>
                 </div>
 
+                {Object.keys(clientErrors).length > 0 && (
+                    <div
+                        role="alert"
+                        className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+                    >
+                        <p className="font-sans font-semibold">{t('products.form_error_title')}</p>
+                        <p className="mt-1 text-destructive/90">{t('products.form_error_desc')}</p>
+                    </div>
+                )}
+
                 <form onSubmit={handleSubmit} className="space-y-6">
-                    <Card className="border-border/80 shadow-sm rounded-lg">
+                    <Card className="rounded-lg border-border/80 shadow-sm">
                         <CardHeader className="bg-white">
-                            <CardTitle className="text-xl font-serif font-bold text-burgundy">
-                                Product Information
+                            <CardTitle className="font-serif text-xl font-bold text-burgundy">
+                                {t('products.section_info')}
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4 bg-white pt-4">
-                            <div className="grid gap-2">
-                                <Label htmlFor="title" className="font-sans font-semibold">
-                                    Product Title *
-                                </Label>
-                                <Input
-                                    id="title"
-                                    name="title"
-                                    required
-                                    className="border-gray-300"
-                                    placeholder="Enter product title"
-                                />
-                                <InputError message={errors.title} />
+                            <div className="grid gap-4 md:grid-cols-2">
+                                <div className="grid gap-2" id={fieldId('title.it')}>
+                                    <Label htmlFor="title-it" className="font-sans font-semibold">
+                                        Title (IT) *
+                                    </Label>
+                                    <Input
+                                        id="title-it"
+                                        name="title[it]"
+                                        required
+                                        className={
+                                            mergedErrors['title.it']
+                                                ? 'border-destructive focus-visible:ring-destructive/30'
+                                                : 'border-gray-300'
+                                        }
+                                        placeholder="Titolo prodotto"
+                                    />
+                                    <InputError message={mergedErrors['title.it']} />
+                                </div>
+                                <div className="grid gap-2" id={fieldId('title.en')}>
+                                    <Label htmlFor="title-en" className="font-sans font-semibold">
+                                        Title (EN) *
+                                    </Label>
+                                    <Input
+                                        id="title-en"
+                                        name="title[en]"
+                                        required
+                                        className={
+                                            mergedErrors['title.en']
+                                                ? 'border-destructive focus-visible:ring-destructive/30'
+                                                : 'border-gray-300'
+                                        }
+                                        placeholder="Product title"
+                                    />
+                                    <InputError message={mergedErrors['title.en']} />
+                                </div>
                             </div>
 
-                            <div className="grid gap-2">
+                            <div className="grid gap-2" id={fieldId('category_id')}>
                                 <Label htmlFor="category_id" className="font-sans font-semibold">
                                     Category *
                                 </Label>
@@ -177,7 +239,11 @@ export default function CreateProduct({ categories, brands }: ProductFormProps) 
                                     id="category_id"
                                     name="category_id"
                                     required
-                                    className="flex h-9 w-full rounded-md border border-gray-300 bg-transparent px-3 py-2 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-burgundy focus-visible:ring-burgundy/50 focus-visible:ring-[3px]"
+                                    className={
+                                        mergedErrors.category_id
+                                            ? 'flex h-9 w-full rounded-md border border-destructive bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-destructive/30 focus-visible:ring-[3px]'
+                                            : 'flex h-9 w-full rounded-md border border-gray-300 bg-transparent px-3 py-2 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-burgundy focus-visible:ring-burgundy/50 focus-visible:ring-[3px]'
+                                    }
                                 >
                                     <option value="">Select a category</option>
                                     {categories.map((category) => (
@@ -186,7 +252,7 @@ export default function CreateProduct({ categories, brands }: ProductFormProps) 
                                         </option>
                                     ))}
                                 </select>
-                                <InputError message={errors.category_id} />
+                                <InputError message={mergedErrors.category_id} />
                             </div>
 
                             {/* Brand: existing or add new */}
@@ -231,18 +297,41 @@ export default function CreateProduct({ categories, brands }: ProductFormProps) 
                                     </select>
                                 ) : (
                                     <div className="space-y-3 rounded-lg border border-border/80 bg-beige/50 p-4">
-                                        <div className="grid gap-2">
-                                            <Label htmlFor="new_brand_name" className="text-sm font-sans font-semibold">
-                                                New brand name *
-                                            </Label>
-                                            <Input
-                                                id="new_brand_name"
-                                                value={newBrandName}
-                                                onChange={(e) => setNewBrandName(e.target.value)}
-                                                className="border-gray-300"
-                                                placeholder="Enter brand name"
-                                            />
-                                            <InputError message={errors.new_brand_name} />
+                                        <div className="grid gap-4 md:grid-cols-2">
+                                            <div className="grid gap-2" id={fieldId('new_brand_name.it')}>
+                                                <Label htmlFor="new_brand_name_it" className="text-sm font-sans font-semibold">
+                                                    Brand name (IT) *
+                                                </Label>
+                                                <Input
+                                                    id="new_brand_name_it"
+                                                    name="new_brand_name[it]"
+                                                    required
+                                                    className={
+                                                        mergedErrors['new_brand_name.it']
+                                                            ? 'border-destructive focus-visible:ring-destructive/30'
+                                                            : 'border-gray-300'
+                                                    }
+                                                    placeholder="Nome marca"
+                                                />
+                                                <InputError message={mergedErrors['new_brand_name.it']} />
+                                            </div>
+                                            <div className="grid gap-2" id={fieldId('new_brand_name.en')}>
+                                                <Label htmlFor="new_brand_name_en" className="text-sm font-sans font-semibold">
+                                                    Brand name (EN) *
+                                                </Label>
+                                                <Input
+                                                    id="new_brand_name_en"
+                                                    name="new_brand_name[en]"
+                                                    required
+                                                    className={
+                                                        mergedErrors['new_brand_name.en']
+                                                            ? 'border-destructive focus-visible:ring-destructive/30'
+                                                            : 'border-gray-300'
+                                                    }
+                                                    placeholder="Brand name"
+                                                />
+                                                <InputError message={mergedErrors['new_brand_name.en']} />
+                                            </div>
                                         </div>
                                         <div className="grid gap-2">
                                             <SingleImageUpload
@@ -250,24 +339,53 @@ export default function CreateProduct({ categories, brands }: ProductFormProps) 
                                                 onChange={setNewBrandLogo}
                                                 label="Brand logo (optional)"
                                             />
-                                            <InputError message={errors.new_brand_logo} />
+                                            <InputError message={mergedErrors.new_brand_logo} />
                                         </div>
                                     </div>
                                 )}
                             </div>
 
                             <div className="grid gap-2">
-                                <Label htmlFor="description" className="font-sans font-semibold">
-                                    Description
+                                <Label htmlFor="tissu" className="font-sans font-semibold">
+                                    Tissu / matière (optionnel)
                                 </Label>
-                                <Textarea
-                                    id="description"
-                                    name="description"
-                                    rows={4}
+                                <Input
+                                    id="tissu"
+                                    name="tissu"
                                     className="border-gray-300"
-                                    placeholder="Enter product description"
+                                    placeholder="ex. Coton, Soie, Dentelle…"
+                                    maxLength={255}
                                 />
-                                <InputError message={errors.description} />
+                                <InputError message={mergedErrors.tissu} />
+                            </div>
+
+                            <div className="grid gap-4 md:grid-cols-2">
+                                <div className="grid gap-2">
+                                    <Label htmlFor="description-it" className="font-sans font-semibold">
+                                        Description (IT)
+                                    </Label>
+                                    <Textarea
+                                        id="description-it"
+                                        name="description[it]"
+                                        rows={4}
+                                        className="border-gray-300"
+                                        placeholder="Descrizione"
+                                    />
+                                    <InputError message={mergedErrors['description.it']} />
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="description-en" className="font-sans font-semibold">
+                                        Description (EN)
+                                    </Label>
+                                    <Textarea
+                                        id="description-en"
+                                        name="description[en]"
+                                        rows={4}
+                                        className="border-gray-300"
+                                        placeholder="Description"
+                                    />
+                                    <InputError message={mergedErrors['description.en']} />
+                                </div>
                             </div>
                         </CardContent>
                     </Card>
@@ -289,7 +407,7 @@ export default function CreateProduct({ categories, brands }: ProductFormProps) 
                                 Add Variant
                             </Button>
                         </CardHeader>
-                        <CardContent className="space-y-4 bg-white pt-4">
+                        <CardContent className="space-y-4 bg-white pt-4" id={fieldId('variants')}>
                             {variants.map((variant, index) => (
                                 <div
                                     key={index}
@@ -311,7 +429,7 @@ export default function CreateProduct({ categories, brands }: ProductFormProps) 
                                             </Button>
                                         )}
                                     </div>
-                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                                         <div className="grid gap-2">
                                             <Label className="text-xs font-sans uppercase tracking-wide text-gray-600">
                                                 Size
@@ -329,9 +447,9 @@ export default function CreateProduct({ categories, brands }: ProductFormProps) 
                                                 className="border-gray-300"
                                             />
                                         </div>
-                                        <div className="grid gap-2">
+                                        <div className="grid gap-2" id={fieldId(`variants.${index}.color`)}>
                                             <Label className="text-xs font-sans uppercase tracking-wide text-gray-600">
-                                                Color
+                                                Color *
                                             </Label>
                                             <Input
                                                 value={variant.color}
@@ -343,10 +461,44 @@ export default function CreateProduct({ categories, brands }: ProductFormProps) 
                                                     )
                                                 }
                                                 placeholder="e.g., Black, Red"
-                                                className="border-gray-300"
+                                                className={
+                                                    mergedErrors[`variants.${index}.color`]
+                                                        ? 'border-destructive focus-visible:ring-destructive/30'
+                                                        : 'border-gray-300'
+                                                }
+                                                aria-invalid={Boolean(mergedErrors[`variants.${index}.color`])}
                                             />
+                                            <InputError message={mergedErrors[`variants.${index}.color`]} />
                                         </div>
-                                        <div className="grid gap-2">
+                                        <div className="grid gap-2" id={fieldId(`variants.${index}.color_hex`)}>
+                                            <Label className="text-xs font-sans uppercase tracking-wide text-gray-600">
+                                                Color hex *
+                                            </Label>
+                                            <Input
+                                                value={variant.color_hex}
+                                                onChange={(e) =>
+                                                    updateVariant(
+                                                        index,
+                                                        'color_hex',
+                                                        e.target.value,
+                                                    )
+                                                }
+                                                required
+                                                placeholder="#1A2B3C"
+                                                className={
+                                                    mergedErrors[`variants.${index}.color_hex`]
+                                                        ? 'border-destructive focus-visible:ring-destructive/30'
+                                                        : 'border-gray-300'
+                                                }
+                                                aria-invalid={Boolean(mergedErrors[`variants.${index}.color_hex`])}
+                                            />
+                                            <p className="text-[11px] leading-snug text-muted-foreground font-sans">
+                                                Required: # plus exactly 6 hex digits (e.g. #000000 for black). Random
+                                                text or incomplete hex is rejected.
+                                            </p>
+                                            <InputError message={mergedErrors[`variants.${index}.color_hex`]} />
+                                        </div>
+                                        <div className="grid gap-2" id={fieldId(`variants.${index}.price`)}>
                                             <Label className="text-xs font-sans uppercase tracking-wide text-gray-600">
                                                 Price *
                                             </Label>
@@ -364,10 +516,16 @@ export default function CreateProduct({ categories, brands }: ProductFormProps) 
                                                 }
                                                 required
                                                 placeholder="0.00"
-                                                className="border-gray-300"
+                                                className={
+                                                    mergedErrors[`variants.${index}.price`]
+                                                        ? 'border-destructive focus-visible:ring-destructive/30'
+                                                        : 'border-gray-300'
+                                                }
+                                                aria-invalid={Boolean(mergedErrors[`variants.${index}.price`])}
                                             />
+                                            <InputError message={mergedErrors[`variants.${index}.price`]} />
                                         </div>
-                                        <div className="grid gap-2">
+                                        <div className="grid gap-2" id={fieldId(`variants.${index}.stock`)}>
                                             <Label className="text-xs font-sans uppercase tracking-wide text-gray-600">
                                                 Stock *
                                             </Label>
@@ -384,14 +542,20 @@ export default function CreateProduct({ categories, brands }: ProductFormProps) 
                                                 }
                                                 required
                                                 placeholder="0"
-                                                className="border-gray-300"
+                                                className={
+                                                    mergedErrors[`variants.${index}.stock`]
+                                                        ? 'border-destructive focus-visible:ring-destructive/30'
+                                                        : 'border-gray-300'
+                                                }
+                                                aria-invalid={Boolean(mergedErrors[`variants.${index}.stock`])}
                                             />
+                                            <InputError message={mergedErrors[`variants.${index}.stock`]} />
                                         </div>
                                     </div>
                                 </div>
                             ))}
-                            {errors.variants && (
-                                <InputError message={errors.variants} />
+                            {mergedErrors.variants && (
+                                <InputError message={mergedErrors.variants} />
                             )}
                         </CardContent>
                     </Card>
@@ -406,7 +570,7 @@ export default function CreateProduct({ categories, brands }: ProductFormProps) 
                         <CardContent className="bg-white pt-4">
                             <MultipleImageUpload
                                 images={images}
-                                onChange={setImages}
+                                onChange={(next) => setImages(next as Image[])}
                                 maxImages={10}
                             />
                         </CardContent>

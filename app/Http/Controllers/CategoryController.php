@@ -21,9 +21,8 @@ class CategoryController extends Controller
      */
     public function index(): Response
     {
-        $all = Category::with(['images'])
+        $all = Category::with(['images', 'translations'])
             ->withCount('products')
-            ->orderBy('name')
             ->get();
 
         return Inertia::render('categories/index', [
@@ -47,9 +46,15 @@ class CategoryController extends Controller
     public function store(StoreCategoryRequest $request): RedirectResponse
     {
         $category = Category::create([
-            'name' => $request->validated('name'),
-            'parent_id' => $request->validated('parent_id'),
+            'parent_id' => $request->input('parent_id') ?: null,
         ]);
+
+        foreach (config('harimi.locales', ['it', 'en']) as $loc) {
+            $category->translations()->create([
+                'locale' => $loc,
+                'name' => (string) $request->input("name.$loc"),
+            ]);
+        }
 
         // Create images
         if ($request->has('images') && is_array($request->images)) {
@@ -76,6 +81,7 @@ class CategoryController extends Controller
             }
         }
 
+        $category->load('translations');
         $this->logActivity('created', 'Category', $category->id, "Catégorie '{$category->name}' créée");
 
         return redirect()->route('categories.index')
@@ -87,7 +93,14 @@ class CategoryController extends Controller
      */
     public function show(Category $category): Response
     {
-        $category->load(['parent', 'children', 'images', 'products']);
+        $category->load([
+            'translations',
+            'parent.translations',
+            'children.translations',
+            'images',
+            'products.translations',
+            'products.category.translations',
+        ]);
 
         return Inertia::render('categories/show', [
             'category' => $category,
@@ -113,9 +126,15 @@ class CategoryController extends Controller
     public function update(UpdateCategoryRequest $request, Category $category): RedirectResponse
     {
         $category->update([
-            'name' => $request->validated('name'),
-            'parent_id' => $request->validated('parent_id'),
+            'parent_id' => $request->input('parent_id') ?: null,
         ]);
+
+        foreach (config('harimi.locales', ['it', 'en']) as $loc) {
+            $category->translations()->updateOrCreate(
+                ['locale' => $loc],
+                ['name' => (string) $request->input("name.$loc")],
+            );
+        }
 
         // Handle image updates - delete old images that are not in the new list
         $existingImageIds = collect($request->images ?? [])
@@ -163,6 +182,7 @@ class CategoryController extends Controller
             }
         }
 
+        $category->load('translations');
         $this->logActivity('updated', 'Category', $category->id, "Catégorie '{$category->name}' modifiée");
 
         return redirect()->route('categories.index')

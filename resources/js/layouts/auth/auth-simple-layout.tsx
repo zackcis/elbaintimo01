@@ -1,6 +1,8 @@
 /* REDESIGN: updated for HARIMI UI refresh — kept props unchanged */
 import AppLogoIcon from '@/components/app-logo-icon';
-import { home } from '@/routes';
+import { LocaleSwitcher } from '@/components/locale-switcher';
+import { LocaleWayfinderSync } from '@/components/locale-wayfinder-sync';
+import { home as storefrontHome } from '@/routes/storefront';
 import { Link } from '@inertiajs/react';
 import { type PropsWithChildren } from 'react';
 
@@ -16,12 +18,16 @@ export default function AuthSimpleLayout({
     description,
 }: PropsWithChildren<AuthLayoutProps>) {
     return (
-        <div className="flex min-h-svh flex-col items-center justify-center gap-6 bg-background p-6 md:p-10">
+        <div className="relative flex min-h-svh flex-col items-center justify-center gap-6 bg-background p-6 md:p-10">
+            <LocaleWayfinderSync />
+            <div className="absolute right-4 top-4 md:right-8 md:top-8">
+                <LocaleSwitcher />
+            </div>
             <div className="w-full max-w-sm rounded-2xl border border-border/60 bg-card/95 p-8 shadow-[0_2px_12px_rgba(0,0,0,0.06)] backdrop-blur-sm">
                 <div className="flex flex-col gap-8">
                     <div className="flex flex-col items-center gap-4">
                         <Link
-                            href={home()}
+                            href={storefrontHome()}
                             className="flex flex-col items-center gap-2 font-medium outline-none ring-ring/40 focus-visible:rounded-lg focus-visible:ring-2"
                         >
                             <span className="mb-0.5 flex size-12 items-center justify-center rounded-xl border border-border bg-beige/50 shadow-inner">

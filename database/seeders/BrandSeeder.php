@@ -3,28 +3,44 @@
 namespace Database\Seeders;
 
 use App\Models\Brand;
+use App\Models\BrandTranslation;
 use Illuminate\Database\Seeder;
 
 class BrandSeeder extends Seeder
 {
-    /**
-     * Run the database seeds.
-     */
     public function run(): void
     {
-        $brands = [
-            ['name' => 'Victoria\'s Secret'],
-            ['name' => 'Calvin Klein'],
-            ['name' => 'La Perla'],
-            ['name' => 'Agent Provocateur'],
-            ['name' => 'Savage X Fenty'],
-            ['name' => 'ThirdLove'],
-            ['name' => 'Aerie'],
-            ['name' => 'Hanky Panky'],
+        $names = [
+            'Victoria\'s Secret',
+            'Calvin Klein',
+            'La Perla',
+            'Agent Provocateur',
+            'Savage X Fenty',
+            'ThirdLove',
+            'Aerie',
+            'Hanky Panky',
         ];
 
-        foreach ($brands as $brand) {
-            Brand::firstOrCreate(['name' => $brand['name']], $brand);
+        foreach ($names as $name) {
+            $exists = BrandTranslation::query()
+                ->where('locale', 'it')
+                ->where('name', $name)
+                ->exists();
+
+            if ($exists) {
+                continue;
+            }
+
+            $brand = Brand::create([
+                'logo' => null,
+            ]);
+
+            foreach (config('harimi.locales', ['it', 'en']) as $loc) {
+                $brand->translations()->create([
+                    'locale' => $loc,
+                    'name' => $name,
+                ]);
+            }
         }
     }
 }

@@ -7,11 +7,16 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import AppLayout from '@/layouts/app-layout';
 import { dashboard } from '@/routes';
-import { index as products } from '@/routes/products';
+import { index as products, update as productUpdate } from '@/routes/products';
 import { type BreadcrumbItem } from '@/types';
 import { Head, router, usePage } from '@inertiajs/react';
+import {
+    type BrandMode,
+    validateProductBasics,
+    validateVariantRows,
+} from '@/lib/product-variant-client-validation';
 import { Plus, Trash2 } from 'lucide-react';
-import { FormEvent, useState } from 'react';
+import { FormEvent, useMemo, useState } from 'react';
 import { MultipleImageUpload, SingleImageUpload } from '@/components/image-upload';
 
 interface Category {
@@ -29,6 +34,7 @@ interface ProductVariant {
     id: number;
     size: string | null;
     color: string | null;
+    color_hex: string | null;
     price: string;
     stock: number;
 }
@@ -40,12 +46,20 @@ interface ProductImage {
     position: number;
 }
 
+interface ProductTranslationRow {
+    locale: string;
+    title: string;
+    description: string | null;
+}
+
 interface Product {
     id: number;
     title: string;
     description: string | null;
     category_id: number;
     brand_id: number | null;
+    tissu: string | null;
+    translations: ProductTranslationRow[];
     variants: ProductVariant[];
     images: ProductImage[];
 }
@@ -56,11 +70,10 @@ interface ProductFormProps {
     brands: Brand[];
 }
 
-type BrandMode = 'existing' | 'new';
-
 interface Variant {
     size: string;
     color: string;
+    color_hex: string;
     price: string;
     stock: string;
 }
@@ -76,7 +89,13 @@ interface Image {
 
 export default function EditProduct({ product, categories, brands }: ProductFormProps) {
     const page = usePage();
-    const errors = (page.props as any).errors || {};
+    const serverErrors = (page.props as { errors?: Record<string, string> }).errors || {};
+    const [clientErrors, setClientErrors] = useState<Record<string, string>>({});
+    const mergedErrors = useMemo(
+        () => ({ ...clientErrors, ...serverErrors }),
+        [clientErrors, serverErrors],
+    );
+    const fieldId = (key: string) => `field-${key.replace(/\./g, '-')}`;
 
     const breadcrumbs: BreadcrumbItem[] = [
         {
@@ -98,10 +117,11 @@ export default function EditProduct({ product, categories, brands }: ProductForm
             ? product.variants.map((v) => ({
                   size: v.size || '',
                   color: v.color || '',
+                  color_hex: v.color_hex || '',
                   price: v.price,
                   stock: v.stock.toString(),
               }))
-            : [{ size: '', color: '', price: '', stock: '' }],
+            : [{ size: '', color: '', color_hex: '', price: '', stock: '' }],
     );
     const [images, setImages] = useState<Image[]>(
         product.images.length > 0
@@ -115,11 +135,12 @@ export default function EditProduct({ product, categories, brands }: ProductForm
     );
 
     const [brandMode, setBrandMode] = useState<BrandMode>('existing');
-    const [newBrandName, setNewBrandName] = useState('');
     const [newBrandLogo, setNewBrandLogo] = useState<File | null>(null);
 
+    const tr = (loc: string) => product.translations?.find((t) => t.locale === loc);
+
     const addVariant = () => {
-        setVariants([...variants, { size: '', color: '', price: '', stock: '' }]);
+        setVariants([...variants, { size: '', color: '', color_hex: '', price: '', stock: '' }]);
     };
 
     const removeVariant = (index: number) => {
@@ -136,21 +157,39 @@ export default function EditProduct({ product, categories, brands }: ProductForm
     const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         const formData = new FormData(e.currentTarget);
-        
+        setClientErrors({});
+        const clientValidation = {
+            ...validateProductBasics(formData, brandMode),
+            ...validateVariantRows(variants),
+        };
+        if (Object.keys(clientValidation).length > 0) {
+            setClientErrors(clientValidation);
+            const firstKey = Object.keys(clientValidation)[0];
+            document.getElementById(fieldId(firstKey))?.scrollIntoView({
+                behavior: 'smooth',
+                block: 'center',
+            });
+            return;
+        }
+
         // Create FormData for file upload
         const uploadData = new FormData();
         uploadData.append('_method', 'PUT');
-        uploadData.append('title', formData.get('title') as string);
-        uploadData.append('description', (formData.get('description') as string) || '');
+        uploadData.append('title[it]', (formData.get('title[it]') as string) || '');
+        uploadData.append('title[en]', (formData.get('title[en]') as string) || '');
+        uploadData.append('description[it]', (formData.get('description[it]') as string) || '');
+        uploadData.append('description[en]', (formData.get('description[en]') as string) || '');
         uploadData.append('category_id', formData.get('category_id') as string);
+        uploadData.append('tissu', ((formData.get('tissu') as string) ?? '').trim());
 
         if (brandMode === 'existing') {
             const brandId = formData.get('brand_id');
             if (brandId) {
                 uploadData.append('brand_id', brandId as string);
             }
-        } else if (brandMode === 'new' && newBrandName.trim()) {
-            uploadData.append('new_brand_name', newBrandName.trim());
+        } else if (brandMode === 'new') {
+            uploadData.append('new_brand_name[it]', (formData.get('new_brand_name[it]') as string) || '');
+            uploadData.append('new_brand_name[en]', (formData.get('new_brand_name[en]') as string) || '');
             if (newBrandLogo) {
                 uploadData.append('new_brand_logo', newBrandLogo);
             }
@@ -160,6 +199,7 @@ export default function EditProduct({ product, categories, brands }: ProductForm
         variants.forEach((v, index) => {
             uploadData.append(`variants[${index}][size]`, v.size || '');
             uploadData.append(`variants[${index}][color]`, v.color || '');
+            uploadData.append(`variants[${index}][color_hex]`, v.color_hex || '');
             uploadData.append(`variants[${index}][price]`, v.price);
             uploadData.append(`variants[${index}][stock]`, v.stock);
         });
@@ -178,8 +218,9 @@ export default function EditProduct({ product, categories, brands }: ProductForm
             uploadData.append(`images[${index}][position]`, img.position.toString());
         });
         
-        router.post(`/products/${product.id}`, uploadData, {
+        router.post(productUpdate.url({ product: product.id }), uploadData, {
             forceFormData: true,
+            onSuccess: () => setClientErrors({}),
         });
     };
 
@@ -196,6 +237,19 @@ export default function EditProduct({ product, categories, brands }: ProductForm
                     </p>
                 </div>
 
+                {Object.keys(clientErrors).length > 0 && (
+                    <div
+                        role="alert"
+                        className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+                    >
+                        <p className="font-semibold font-sans">Please fix the highlighted fields</p>
+                        <p className="mt-1 text-destructive/90">
+                            The form was not sent because some values are missing or invalid. Review the messages
+                            below each field.
+                        </p>
+                    </div>
+                )}
+
                 <form onSubmit={handleSubmit} className="space-y-6">
                     <Card className="border-border/80 shadow-sm rounded-lg">
                         <CardHeader className="bg-white">
@@ -204,19 +258,35 @@ export default function EditProduct({ product, categories, brands }: ProductForm
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4 bg-white pt-4">
-                            <div className="grid gap-2">
-                                <Label htmlFor="title" className="font-sans font-semibold">
-                                    Product Title *
-                                </Label>
-                                <Input
-                                    id="title"
-                                    name="title"
-                                    required
-                                    defaultValue={product.title}
-                                    className="border-gray-300"
-                                    placeholder="Enter product title"
-                                />
-                                <InputError message={errors.title} />
+                            <div className="grid gap-4 md:grid-cols-2">
+                                <div className="grid gap-2">
+                                    <Label htmlFor="title-it" className="font-sans font-semibold">
+                                        Title (IT) *
+                                    </Label>
+                                    <Input
+                                        id="title-it"
+                                        name="title[it]"
+                                        required
+                                        defaultValue={tr('it')?.title ?? ''}
+                                        className="border-gray-300"
+                                        placeholder="Titolo prodotto"
+                                    />
+                                    <InputError message={mergedErrors['title.it']} />
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="title-en" className="font-sans font-semibold">
+                                        Title (EN) *
+                                    </Label>
+                                    <Input
+                                        id="title-en"
+                                        name="title[en]"
+                                        required
+                                        defaultValue={tr('en')?.title ?? ''}
+                                        className="border-gray-300"
+                                        placeholder="Product title"
+                                    />
+                                    <InputError message={mergedErrors['title.en']} />
+                                </div>
                             </div>
 
                             <div className="grid gap-2">
@@ -237,7 +307,7 @@ export default function EditProduct({ product, categories, brands }: ProductForm
                                         </option>
                                     ))}
                                 </select>
-                                <InputError message={errors.category_id} />
+                                <InputError message={mergedErrors.category_id} />
                             </div>
 
                             {/* Brand: existing or add new (same as create — keeps brand_id on save) */}
@@ -281,21 +351,39 @@ export default function EditProduct({ product, categories, brands }: ProductForm
                                     </select>
                                 ) : (
                                     <div className="space-y-3 rounded-lg border border-border/80 bg-beige/50 p-4">
-                                        <div className="grid gap-2">
-                                            <Label
-                                                htmlFor="new_brand_name"
-                                                className="text-sm font-sans font-semibold"
-                                            >
-                                                New brand name *
-                                            </Label>
-                                            <Input
-                                                id="new_brand_name"
-                                                value={newBrandName}
-                                                onChange={(e) => setNewBrandName(e.target.value)}
-                                                className="border-gray-300"
-                                                placeholder="Enter brand name"
-                                            />
-                                            <InputError message={errors.new_brand_name} />
+                                        <div className="grid gap-4 md:grid-cols-2">
+                                            <div className="grid gap-2">
+                                                <Label
+                                                    htmlFor="new_brand_name_it"
+                                                    className="text-sm font-sans font-semibold"
+                                                >
+                                                    Brand name (IT) *
+                                                </Label>
+                                                <Input
+                                                    id="new_brand_name_it"
+                                                    name="new_brand_name[it]"
+                                                    required
+                                                    className="border-gray-300"
+                                                    placeholder="Nome marca"
+                                                />
+                                                <InputError message={mergedErrors['new_brand_name.it']} />
+                                            </div>
+                                            <div className="grid gap-2">
+                                                <Label
+                                                    htmlFor="new_brand_name_en"
+                                                    className="text-sm font-sans font-semibold"
+                                                >
+                                                    Brand name (EN) *
+                                                </Label>
+                                                <Input
+                                                    id="new_brand_name_en"
+                                                    name="new_brand_name[en]"
+                                                    required
+                                                    className="border-gray-300"
+                                                    placeholder="Brand name"
+                                                />
+                                                <InputError message={mergedErrors['new_brand_name.en']} />
+                                            </div>
                                         </div>
                                         <div className="grid gap-2">
                                             <SingleImageUpload
@@ -303,26 +391,57 @@ export default function EditProduct({ product, categories, brands }: ProductForm
                                                 onChange={setNewBrandLogo}
                                                 label="Brand logo (optional)"
                                             />
-                                            <InputError message={errors.new_brand_logo} />
+                                            <InputError message={mergedErrors.new_brand_logo} />
                                         </div>
                                     </div>
                                 )}
-                                <InputError message={errors.brand_id} />
+                                <InputError message={mergedErrors.brand_id} />
                             </div>
 
                             <div className="grid gap-2">
-                                <Label htmlFor="description" className="font-sans font-semibold">
-                                    Description
+                                <Label htmlFor="tissu" className="font-sans font-semibold">
+                                    Tissu / matière (optionnel)
                                 </Label>
-                                <Textarea
-                                    id="description"
-                                    name="description"
-                                    rows={4}
-                                    defaultValue={product.description || ''}
+                                <Input
+                                    id="tissu"
+                                    name="tissu"
                                     className="border-gray-300"
-                                    placeholder="Enter product description"
+                                    defaultValue={product.tissu ?? ''}
+                                    placeholder="ex. Coton, Soie, Dentelle…"
+                                    maxLength={255}
                                 />
-                                <InputError message={errors.description} />
+                                <InputError message={mergedErrors.tissu} />
+                            </div>
+
+                            <div className="grid gap-4 md:grid-cols-2">
+                                <div className="grid gap-2">
+                                    <Label htmlFor="description-it" className="font-sans font-semibold">
+                                        Description (IT)
+                                    </Label>
+                                    <Textarea
+                                        id="description-it"
+                                        name="description[it]"
+                                        rows={4}
+                                        defaultValue={tr('it')?.description ?? ''}
+                                        className="border-gray-300"
+                                        placeholder="Descrizione"
+                                    />
+                                    <InputError message={mergedErrors['description.it']} />
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="description-en" className="font-sans font-semibold">
+                                        Description (EN)
+                                    </Label>
+                                    <Textarea
+                                        id="description-en"
+                                        name="description[en]"
+                                        rows={4}
+                                        defaultValue={tr('en')?.description ?? ''}
+                                        className="border-gray-300"
+                                        placeholder="Description"
+                                    />
+                                    <InputError message={mergedErrors['description.en']} />
+                                </div>
                             </div>
                         </CardContent>
                     </Card>
@@ -344,7 +463,7 @@ export default function EditProduct({ product, categories, brands }: ProductForm
                                 Add Variant
                             </Button>
                         </CardHeader>
-                        <CardContent className="space-y-4 bg-white pt-4">
+                        <CardContent className="space-y-4 bg-white pt-4" id={fieldId('variants')}>
                             {variants.map((variant, index) => (
                                 <div
                                     key={index}
@@ -366,7 +485,7 @@ export default function EditProduct({ product, categories, brands }: ProductForm
                                             </Button>
                                         )}
                                     </div>
-                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                                         <div className="grid gap-2">
                                             <Label className="text-xs font-sans uppercase tracking-wide text-gray-600">
                                                 Size
@@ -384,9 +503,9 @@ export default function EditProduct({ product, categories, brands }: ProductForm
                                                 className="border-gray-300"
                                             />
                                         </div>
-                                        <div className="grid gap-2">
+                                        <div className="grid gap-2" id={fieldId(`variants.${index}.color`)}>
                                             <Label className="text-xs font-sans uppercase tracking-wide text-gray-600">
-                                                Color
+                                                Color *
                                             </Label>
                                             <Input
                                                 value={variant.color}
@@ -398,10 +517,44 @@ export default function EditProduct({ product, categories, brands }: ProductForm
                                                     )
                                                 }
                                                 placeholder="e.g., Black, Red"
-                                                className="border-gray-300"
+                                                className={
+                                                    mergedErrors[`variants.${index}.color`]
+                                                        ? 'border-destructive focus-visible:ring-destructive/30'
+                                                        : 'border-gray-300'
+                                                }
+                                                aria-invalid={Boolean(mergedErrors[`variants.${index}.color`])}
                                             />
+                                            <InputError message={mergedErrors[`variants.${index}.color`]} />
                                         </div>
-                                        <div className="grid gap-2">
+                                        <div className="grid gap-2" id={fieldId(`variants.${index}.color_hex`)}>
+                                            <Label className="text-xs font-sans uppercase tracking-wide text-gray-600">
+                                                Color hex *
+                                            </Label>
+                                            <Input
+                                                value={variant.color_hex}
+                                                onChange={(e) =>
+                                                    updateVariant(
+                                                        index,
+                                                        'color_hex',
+                                                        e.target.value,
+                                                    )
+                                                }
+                                                required
+                                                placeholder="#1A2B3C"
+                                                className={
+                                                    mergedErrors[`variants.${index}.color_hex`]
+                                                        ? 'border-destructive focus-visible:ring-destructive/30'
+                                                        : 'border-gray-300'
+                                                }
+                                                aria-invalid={Boolean(mergedErrors[`variants.${index}.color_hex`])}
+                                            />
+                                            <p className="text-[11px] leading-snug text-muted-foreground font-sans">
+                                                Required: # plus exactly 6 hex digits. Incomplete or invalid hex is
+                                                rejected.
+                                            </p>
+                                            <InputError message={mergedErrors[`variants.${index}.color_hex`]} />
+                                        </div>
+                                        <div className="grid gap-2" id={fieldId(`variants.${index}.price`)}>
                                             <Label className="text-xs font-sans uppercase tracking-wide text-gray-600">
                                                 Price *
                                             </Label>
@@ -419,10 +572,16 @@ export default function EditProduct({ product, categories, brands }: ProductForm
                                                 }
                                                 required
                                                 placeholder="0.00"
-                                                className="border-gray-300"
+                                                className={
+                                                    mergedErrors[`variants.${index}.price`]
+                                                        ? 'border-destructive focus-visible:ring-destructive/30'
+                                                        : 'border-gray-300'
+                                                }
+                                                aria-invalid={Boolean(mergedErrors[`variants.${index}.price`])}
                                             />
+                                            <InputError message={mergedErrors[`variants.${index}.price`]} />
                                         </div>
-                                        <div className="grid gap-2">
+                                        <div className="grid gap-2" id={fieldId(`variants.${index}.stock`)}>
                                             <Label className="text-xs font-sans uppercase tracking-wide text-gray-600">
                                                 Stock *
                                             </Label>
@@ -439,14 +598,20 @@ export default function EditProduct({ product, categories, brands }: ProductForm
                                                 }
                                                 required
                                                 placeholder="0"
-                                                className="border-gray-300"
+                                                className={
+                                                    mergedErrors[`variants.${index}.stock`]
+                                                        ? 'border-destructive focus-visible:ring-destructive/30'
+                                                        : 'border-gray-300'
+                                                }
+                                                aria-invalid={Boolean(mergedErrors[`variants.${index}.stock`])}
                                             />
+                                            <InputError message={mergedErrors[`variants.${index}.stock`]} />
                                         </div>
                                     </div>
                                 </div>
                             ))}
-                            {errors.variants && (
-                                <InputError message={errors.variants} />
+                            {mergedErrors.variants && (
+                                <InputError message={mergedErrors.variants} />
                             )}
                         </CardContent>
                     </Card>
@@ -461,7 +626,7 @@ export default function EditProduct({ product, categories, brands }: ProductForm
                         <CardContent className="bg-white pt-4">
                             <MultipleImageUpload
                                 images={images}
-                                onChange={setImages}
+                                onChange={(next) => setImages(next as Image[])}
                                 maxImages={10}
                             />
                         </CardContent>

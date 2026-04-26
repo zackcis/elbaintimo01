@@ -2,29 +2,18 @@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useUi } from '@/hooks/use-ui';
 import AppLayout from '@/layouts/app-layout';
 import { dashboard } from '@/routes';
+import { destroy as commandDestroy, edit as commandEdit, index as commandsIndex, invoice as commandInvoice, update as commandUpdate } from '@/routes/commands';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, router, usePage } from '@inertiajs/react';
-
-const commandsIndex = () => ({ url: '/commands' });
-import { ArrowLeft, Download, FileText, Mail, User, Calendar, Edit, Trash2, Printer } from 'lucide-react';
+import { ArrowLeft, Download, FileText, Mail, User, Calendar, Edit, Trash2, Printer, Package, Store } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { ToastContainer } from '@/components/toast';
 import { ConfirmationDialog } from '@/components/confirmation-dialog';
-
-const breadcrumbs: BreadcrumbItem[] = [
-    {
-        title: 'Dashboard',
-        href: dashboard().url,
-    },
-    {
-        title: 'Commandes',
-        href: commandsIndex().url,
-    },
-];
 
 interface CommandItem {
     id: number;
@@ -40,6 +29,7 @@ interface Command {
     reference: string;
     client_name: string;
     client_email: string;
+    fulfillment_type: 'pickup' | 'ship';
     status: 'pending' | 'confirmed' | 'shipped' | 'cancelled';
     total_amount: string;
     notes: string | null;
@@ -56,10 +46,20 @@ interface CommandsShowProps {
 }
 
 export default function CommandsShow({ command }: CommandsShowProps) {
+    const { t, locale } = useUi();
+    const breadcrumbs: BreadcrumbItem[] = [
+        { title: t('breadcrumb.dashboard'), href: dashboard().url },
+        { title: t('commands.title'), href: commandsIndex().url },
+    ];
+    const dateLocale = locale === 'it' ? 'it-IT' : 'en-US';
     const toast = useToast();
     const page = usePage();
     const [deleteDialog, setDeleteDialog] = useState(false);
     const [status, setStatus] = useState(command.status);
+
+    useEffect(() => {
+        setStatus(command.status);
+    }, [command.status]);
 
     const flash = (page.props as { flash?: { success?: string } }).flash;
     useEffect(() => {
@@ -86,29 +86,33 @@ export default function CommandsShow({ command }: CommandsShowProps) {
     const getStatusLabel = (status: string) => {
         switch (status) {
             case 'pending':
-                return 'En attente';
+                return t('commands.status.pending');
             case 'confirmed':
-                return 'Confirmée';
+                return t('commands.status.confirmed');
             case 'shipped':
-                return 'Expédiée';
+                return t('commands.status.shipped');
             case 'cancelled':
-                return 'Annulée';
+                return t('commands.status.cancelled');
             default:
                 return status;
         }
     };
 
-    const handleStatusChange = (newStatus: string) => {
+    const fulfillment = command.fulfillment_type ?? 'pickup';
+    const fulfillmentLabel = fulfillment === 'ship' ? t('invoice.ship_detail') : t('invoice.pickup_detail');
+
+    const handleStatusChange = (newStatus: Command['status']) => {
         setStatus(newStatus);
-        router.put(`/commands/${command.id}`, {
+        router.put(commandUpdate.url({ command: command.id }), {
             client_name: command.client_name,
             client_email: command.client_email,
+            fulfillment_type: command.fulfillment_type ?? 'pickup',
             status: newStatus,
             notes: command.notes,
         }, {
             preserveScroll: true,
             onSuccess: () => {
-                toast.success('Statut mis à jour avec succès.');
+                toast.success(t('commands.status_updated'));
             },
         });
     };
@@ -118,9 +122,9 @@ export default function CommandsShow({ command }: CommandsShowProps) {
     };
 
     const confirmDelete = () => {
-        router.delete(`/commands/${command.id}`, {
+        router.delete(commandDestroy.url({ command: command.id }), {
             onSuccess: () => {
-                toast.success('Commande supprimée avec succès.');
+                toast.success(t('commands.deleted_success'));
                 router.visit(commandsIndex().url);
             },
         });
@@ -136,15 +140,15 @@ export default function CommandsShow({ command }: CommandsShowProps) {
 
     return (
         <AppLayout breadcrumbs={breadcrumbsWithCommand}>
-            <Head title={`${command.reference} - HARIMI`} />
+            <Head title={`${t('commands.title')} ${command.reference} - HARIMI`} />
             <ToastContainer toasts={toast.toasts} onClose={toast.removeToast} />
             <ConfirmationDialog
                 open={deleteDialog}
                 onClose={() => setDeleteDialog(false)}
                 onConfirm={confirmDelete}
-                title="Supprimer la commande"
-                description="Êtes-vous sûr de vouloir supprimer cette commande ? Cette action est irréversible."
-                confirmText="Supprimer"
+                title={t('commands.delete_title')}
+                description={t('commands.delete_desc')}
+                confirmText={t('common.delete')}
                 variant="destructive"
             />
             <div className="flex h-full flex-1 flex-col gap-6 p-8 bg-gray-50">
@@ -156,7 +160,7 @@ export default function CommandsShow({ command }: CommandsShowProps) {
                             className="inline-flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 mb-4"
                         >
                             <ArrowLeft className="h-4 w-4" />
-                            Retour aux commandes
+                            {t('commands.back_to_orders')}
                         </Link>
                         <div className="flex items-center gap-3 mb-2">
                             <h1 className="text-3xl font-semibold text-gray-900">
@@ -167,7 +171,8 @@ export default function CommandsShow({ command }: CommandsShowProps) {
                             </Badge>
                         </div>
                         <p className="text-sm text-gray-600">
-                            Créée le {new Date(command.created_at).toLocaleDateString('fr-FR', {
+                            {t('commands.show.created_on')}{' '}
+                            {new Date(command.created_at).toLocaleDateString(dateLocale, {
                                 year: 'numeric',
                                 month: 'long',
                                 day: 'numeric',
@@ -177,10 +182,10 @@ export default function CommandsShow({ command }: CommandsShowProps) {
                         </p>
                     </div>
                     <div className="flex items-center gap-2">
-                        <Link href={`/commands/${command.id}/invoice`}>
+                        <Link href={commandInvoice({ command: command.id }).url}>
                             <Button variant="outline" className="border-gray-300">
                                 <FileText className="h-4 w-4 mr-2" />
-                                Bon de commande
+                                {t('commands.invoice')}
                             </Button>
                         </Link>
                         <Button
@@ -189,12 +194,12 @@ export default function CommandsShow({ command }: CommandsShowProps) {
                             className="border-gray-300"
                         >
                             <Printer className="h-4 w-4 mr-2" />
-                            Imprimer
+                            {t('commands.print')}
                         </Button>
-                        <Link href={`/commands/${command.id}/edit`}>
+                        <Link href={commandEdit({ command: command.id }).url}>
                             <Button variant="outline" className="border-gray-300">
                                 <Edit className="h-4 w-4 mr-2" />
-                                Modifier
+                                {t('common.edit')}
                             </Button>
                         </Link>
                         <Button
@@ -203,7 +208,7 @@ export default function CommandsShow({ command }: CommandsShowProps) {
                             className="border-red-300 text-red-600 hover:bg-red-50"
                         >
                             <Trash2 className="h-4 w-4 mr-2" />
-                            Supprimer
+                            {t('common.delete')}
                         </Button>
                     </div>
                 </div>
@@ -215,7 +220,7 @@ export default function CommandsShow({ command }: CommandsShowProps) {
                         <Card className="border-border/80">
                             <CardHeader>
                                 <CardTitle className="text-lg font-semibold text-gray-900">
-                                    Informations client
+                                    {t('commands.show.client_info')}
                                 </CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-4">
@@ -224,7 +229,7 @@ export default function CommandsShow({ command }: CommandsShowProps) {
                                         <User className="h-5 w-5 text-gray-600" />
                                     </div>
                                     <div>
-                                        <p className="text-sm text-gray-600">Nom</p>
+                                        <p className="text-sm text-gray-600">{t('commands.show.name')}</p>
                                         <p className="text-base font-medium text-gray-900">
                                             {command.client_name}
                                         </p>
@@ -235,10 +240,23 @@ export default function CommandsShow({ command }: CommandsShowProps) {
                                         <Mail className="h-5 w-5 text-gray-600" />
                                     </div>
                                     <div>
-                                        <p className="text-sm text-gray-600">Email</p>
+                                        <p className="text-sm text-gray-600">{t('auth.register.email')}</p>
                                         <p className="text-base font-medium text-gray-900">
                                             {command.client_email}
                                         </p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2 bg-gray-100 rounded-lg">
+                                        {fulfillment === 'ship' ? (
+                                            <Package className="h-5 w-5 text-gray-600" />
+                                        ) : (
+                                            <Store className="h-5 w-5 text-gray-600" />
+                                        )}
+                                    </div>
+                                    <div>
+                                        <p className="text-sm text-gray-600">{t('invoice.fulfillment_label')}</p>
+                                        <p className="text-base font-medium text-gray-900">{fulfillmentLabel}</p>
                                     </div>
                                 </div>
                             </CardContent>
@@ -248,24 +266,26 @@ export default function CommandsShow({ command }: CommandsShowProps) {
                         <Card className="border-border/80">
                             <CardHeader>
                                 <CardTitle className="text-lg font-semibold text-gray-900">
-                                    Gestion du statut
+                                    {t('commands.show.status_management')}
                                 </CardTitle>
                             </CardHeader>
                             <CardContent>
                                 <div className="space-y-4">
                                     <div>
                                         <Label className="text-sm font-medium text-gray-700 mb-2 block">
-                                            Changer le statut
+                                            {t('commands.show.change_status')}
                                         </Label>
                                         <select
                                             value={status}
-                                            onChange={(e) => handleStatusChange(e.target.value)}
+                                            onChange={(e) =>
+                                                handleStatusChange(e.target.value as Command['status'])
+                                            }
                                             className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-burgundy/20 focus:border-burgundy"
                                         >
-                                            <option value="pending">En attente</option>
-                                            <option value="confirmed">Confirmée</option>
-                                            <option value="shipped">Expédiée</option>
-                                            <option value="cancelled">Annulée</option>
+                                            <option value="pending">{t('commands.status.pending')}</option>
+                                            <option value="confirmed">{t('commands.status.confirmed')}</option>
+                                            <option value="shipped">{t('commands.status.shipped')}</option>
+                                            <option value="cancelled">{t('commands.status.cancelled')}</option>
                                         </select>
                                     </div>
 
@@ -273,35 +293,35 @@ export default function CommandsShow({ command }: CommandsShowProps) {
                                     <div className="pt-4 border-t border-border/80 space-y-3">
                                         <div className="flex items-center gap-3 text-sm">
                                             <Calendar className="h-4 w-4 text-gray-400" />
-                                            <span className="text-gray-600">Créée:</span>
+                                            <span className="text-gray-600">{t('commands.show.created_label')}:</span>
                                             <span className="font-medium text-gray-900">
-                                                {new Date(command.created_at).toLocaleString('fr-FR')}
+                                                {new Date(command.created_at).toLocaleString(dateLocale)}
                                             </span>
                                         </div>
                                         {command.confirmed_at && (
                                             <div className="flex items-center gap-3 text-sm">
                                                 <div className="h-2 w-2 rounded-full bg-blue-500" />
-                                                <span className="text-gray-600">Confirmée:</span>
+                                                <span className="text-gray-600">{t('commands.status.confirmed')}:</span>
                                                 <span className="font-medium text-gray-900">
-                                                    {new Date(command.confirmed_at).toLocaleString('fr-FR')}
+                                                    {new Date(command.confirmed_at).toLocaleString(dateLocale)}
                                                 </span>
                                             </div>
                                         )}
                                         {command.shipped_at && (
                                             <div className="flex items-center gap-3 text-sm">
                                                 <div className="h-2 w-2 rounded-full bg-green-500" />
-                                                <span className="text-gray-600">Expédiée:</span>
+                                                <span className="text-gray-600">{t('commands.status.shipped')}:</span>
                                                 <span className="font-medium text-gray-900">
-                                                    {new Date(command.shipped_at).toLocaleString('fr-FR')}
+                                                    {new Date(command.shipped_at).toLocaleString(dateLocale)}
                                                 </span>
                                             </div>
                                         )}
                                         {command.cancelled_at && (
                                             <div className="flex items-center gap-3 text-sm">
                                                 <div className="h-2 w-2 rounded-full bg-red-500" />
-                                                <span className="text-gray-600">Annulée:</span>
+                                                <span className="text-gray-600">{t('commands.status.cancelled')}:</span>
                                                 <span className="font-medium text-gray-900">
-                                                    {new Date(command.cancelled_at).toLocaleString('fr-FR')}
+                                                    {new Date(command.cancelled_at).toLocaleString(dateLocale)}
                                                 </span>
                                             </div>
                                         )}
@@ -314,7 +334,7 @@ export default function CommandsShow({ command }: CommandsShowProps) {
                         <Card className="border-border/80">
                             <CardHeader>
                                 <CardTitle className="text-lg font-semibold text-gray-900">
-                                    Articles de la commande
+                                    {t('commands.show.items')}
                                 </CardTitle>
                             </CardHeader>
                             <CardContent>
@@ -323,19 +343,19 @@ export default function CommandsShow({ command }: CommandsShowProps) {
                                         <thead className="bg-gray-50 border-b border-border/80">
                                             <tr>
                                                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
-                                                    Produit
+                                                    {t('invoice.product')}
                                                 </th>
                                                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
-                                                    Variante
+                                                    {t('invoice.variant')}
                                                 </th>
                                                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-600 uppercase tracking-wider">
-                                                    Quantité
+                                                    {t('invoice.qty')}
                                                 </th>
                                                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-600 uppercase tracking-wider">
-                                                    Prix unitaire
+                                                    {t('invoice.unit_price')}
                                                 </th>
                                                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-600 uppercase tracking-wider">
-                                                    Total
+                                                    {t('invoice.total')}
                                                 </th>
                                             </tr>
                                         </thead>
@@ -359,7 +379,7 @@ export default function CommandsShow({ command }: CommandsShowProps) {
                                                     </td>
                                                     <td className="px-4 py-4 whitespace-nowrap text-right">
                                                         <span className="text-sm text-gray-900">
-                                                            {parseFloat(item.unit_price).toLocaleString('fr-FR', {
+                                                            {parseFloat(item.unit_price).toLocaleString(dateLocale, {
                                                                 style: 'currency',
                                                                 currency: 'EUR',
                                                             })}
@@ -367,7 +387,7 @@ export default function CommandsShow({ command }: CommandsShowProps) {
                                                     </td>
                                                     <td className="px-4 py-4 whitespace-nowrap text-right">
                                                         <span className="text-sm font-medium text-gray-900">
-                                                            {parseFloat(item.total_price).toLocaleString('fr-FR', {
+                                                            {parseFloat(item.total_price).toLocaleString(dateLocale, {
                                                                 style: 'currency',
                                                                 currency: 'EUR',
                                                             })}
@@ -379,11 +399,11 @@ export default function CommandsShow({ command }: CommandsShowProps) {
                                         <tfoot className="bg-gray-50 border-t-2 border-gray-300">
                                             <tr>
                                                 <td colSpan={4} className="px-4 py-4 text-right text-sm font-semibold text-gray-900">
-                                                    Total
+                                                    {t('invoice.total')}
                                                 </td>
                                                 <td className="px-4 py-4 text-right">
                                                     <span className="text-lg font-bold text-burgundy">
-                                                        {parseFloat(command.total_amount).toLocaleString('fr-FR', {
+                                                        {parseFloat(command.total_amount).toLocaleString(dateLocale, {
                                                             style: 'currency',
                                                             currency: 'EUR',
                                                         })}
@@ -401,7 +421,7 @@ export default function CommandsShow({ command }: CommandsShowProps) {
                             <Card className="border-border/80">
                                 <CardHeader>
                                     <CardTitle className="text-lg font-semibold text-gray-900">
-                                        Notes
+                                        {t('invoice.notes')}
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent>
@@ -419,27 +439,27 @@ export default function CommandsShow({ command }: CommandsShowProps) {
                         <Card className="border-border/80">
                             <CardHeader>
                                 <CardTitle className="text-lg font-semibold text-gray-900">
-                                    Résumé
+                                    {t('commands.show.summary')}
                                 </CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-4">
                                 <div className="flex justify-between text-sm">
-                                    <span className="text-gray-600">Sous-total</span>
+                                    <span className="text-gray-600">{t('commands.show.subtotal')}</span>
                                     <span className="font-medium text-gray-900">
-                                        {parseFloat(command.total_amount).toLocaleString('fr-FR', {
+                                        {parseFloat(command.total_amount).toLocaleString(dateLocale, {
                                             style: 'currency',
                                             currency: 'EUR',
                                         })}
                                     </span>
                                 </div>
                                 <div className="flex justify-between text-sm">
-                                    <span className="text-gray-600">TVA</span>
+                                    <span className="text-gray-600">{t('commands.show.vat')}</span>
                                     <span className="font-medium text-gray-900">0,00 €</span>
                                 </div>
                                 <div className="pt-4 border-t border-border/80 flex justify-between">
-                                    <span className="text-base font-semibold text-gray-900">Total</span>
+                                    <span className="text-base font-semibold text-gray-900">{t('invoice.total')}</span>
                                     <span className="text-xl font-bold text-burgundy">
-                                        {parseFloat(command.total_amount).toLocaleString('fr-FR', {
+                                        {parseFloat(command.total_amount).toLocaleString(dateLocale, {
                                             style: 'currency',
                                             currency: 'EUR',
                                         })}
@@ -452,14 +472,14 @@ export default function CommandsShow({ command }: CommandsShowProps) {
                         <Card className="border-border/80">
                             <CardHeader>
                                 <CardTitle className="text-lg font-semibold text-gray-900">
-                                    Actions rapides
+                                    {t('commands.show.quick_actions')}
                                 </CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-2">
-                                <Link href={`/commands/${command.id}/invoice`} className="block">
+                                <Link href={commandInvoice({ command: command.id }).url} className="block">
                                     <Button variant="outline" className="w-full justify-start border-gray-300">
                                         <Download className="h-4 w-4 mr-2" />
-                                        Télécharger PDF
+                                        {t('commands.show.download_pdf')}
                                     </Button>
                                 </Link>
                                 <Button
@@ -468,7 +488,7 @@ export default function CommandsShow({ command }: CommandsShowProps) {
                                     className="w-full justify-start border-gray-300"
                                 >
                                     <Printer className="h-4 w-4 mr-2" />
-                                    Imprimer
+                                    {t('commands.print')}
                                 </Button>
                             </CardContent>
                         </Card>

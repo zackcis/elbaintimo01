@@ -10,10 +10,15 @@ class Command extends Model
 {
     use HasFactory;
 
+    public const FULFILLMENT_PICKUP = 'pickup';
+
+    public const FULFILLMENT_SHIP = 'ship';
+
     protected $fillable = [
         'reference',
         'client_name',
         'client_email',
+        'fulfillment_type',
         'status',
         'total_amount',
         'notes',

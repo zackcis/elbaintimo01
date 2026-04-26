@@ -2,8 +2,10 @@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useUi } from '@/hooks/use-ui';
 import AppLayout from '@/layouts/app-layout';
 import { dashboard } from '@/routes';
+import { create as brandsCreate, destroy as brandDestroy, edit as brandEdit, index as brandsIndex } from '@/routes/brands';
 import { index as products } from '@/routes/products';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, router, usePage } from '@inertiajs/react';
@@ -17,11 +19,6 @@ import type { ResourceViewMode } from '@/lib/resource-view';
 import { ConfirmationDialog } from '@/components/confirmation-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { ToastContainer } from '@/components/toast';
-
-const breadcrumbs: BreadcrumbItem[] = [
-    { title: 'Dashboard', href: dashboard().url },
-    { title: 'Brands', href: '/brands' },
-];
 
 interface Brand {
     id: number;
@@ -47,6 +44,11 @@ function brandGridClass(mode: ResourceViewMode): string {
 }
 
 export default function BrandsIndex({ brands }: BrandsProps) {
+    const { t } = useUi();
+    const breadcrumbs: BreadcrumbItem[] = [
+        { title: t('breadcrumb.dashboard'), href: dashboard().url },
+        { title: t('brands.title'), href: brandsIndex().url },
+    ];
     const page = usePage();
     const toast = useToast();
     const [isLoading, setIsLoading] = useState(true);
@@ -75,8 +77,8 @@ export default function BrandsIndex({ brands }: BrandsProps) {
 
     const confirmDelete = () => {
         if (deleteDialog.brandId) {
-            router.delete(`/brands/${deleteDialog.brandId}`, {
-                onSuccess: () => toast.success('Brand deleted successfully.'),
+            router.delete(brandDestroy.url({ brand: deleteDialog.brandId }), {
+                onSuccess: () => toast.success(t('brands.deleted_success')),
             });
             setDeleteDialog({ open: false, brandId: null });
         }
@@ -84,33 +86,33 @@ export default function BrandsIndex({ brands }: BrandsProps) {
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title="Brands - HARIMI" />
+            <Head title={`${t('brands.title')} - HARIMI`} />
             <ToastContainer toasts={toast.toasts} onClose={toast.removeToast} />
             <ConfirmationDialog
                 open={deleteDialog.open}
                 onClose={() => setDeleteDialog({ open: false, brandId: null })}
                 onConfirm={confirmDelete}
-                title="Delete Brand"
-                description="Are you sure you want to delete this brand? Products linked to it will keep the brand reference until you update them."
-                confirmText="Delete"
+                title={t('brands.delete_title')}
+                description={t('brands.delete_desc')}
+                confirmText={t('common.delete')}
                 variant="destructive"
             />
             <div className="flex h-full flex-1 flex-col gap-8 bg-beige/30 p-6 md:p-8">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <div className="flex flex-col gap-3">
                         <h1 className="font-serif text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
-                            Brands
+                            {t('brands.title')}
                         </h1>
                         <p className="font-sans text-sm text-muted-foreground md:text-base">
-                            Manage brands ({brands.length} brands)
+                            {t('brands.manage')} ({brands.length} {t('brands.title').toLowerCase()})
                         </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                         <ResourceViewSwitcher mode={viewMode} onChange={setViewMode} />
-                        <Link href="/brands/create" className="inline-flex">
+                        <Link href={brandsCreate().url} className="inline-flex">
                             <Button className="bg-burgundy text-white hover:bg-burgundy-dark font-medium">
                                 <Plus className="h-4 w-4 mr-2" />
-                                New Brand
+                                {t('brands.create')}
                             </Button>
                         </Link>
                     </div>
@@ -123,15 +125,15 @@ export default function BrandsIndex({ brands }: BrandsProps) {
                         <CardContent className="flex flex-col items-center justify-center py-16 bg-white">
                             <Building2 className="h-16 w-16 text-gray-300 mb-4" />
                             <p className="text-xl font-serif font-semibold mb-2 text-burgundy">
-                                No brands yet
+                                {t('brands.empty_title')}
                             </p>
                             <p className="text-sm text-gray-600 font-sans mb-4">
-                                Create your first brand to assign to products.
+                                {t('brands.empty_desc')}
                             </p>
-                            <Link href="/brands/create">
+                            <Link href={brandsCreate().url}>
                                 <Button className="bg-burgundy text-white hover:bg-burgundy-dark">
                                     <Plus className="h-4 w-4 mr-2" />
-                                    New Brand
+                                    {t('brands.create')}
                                 </Button>
                             </Link>
                         </CardContent>
@@ -144,9 +146,9 @@ export default function BrandsIndex({ brands }: BrandsProps) {
                                     <thead>
                                         <tr className="border-b border-border bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                                             <th className="px-3 py-3 w-16"> </th>
-                                            <th className="px-3 py-3">Name</th>
-                                            <th className="px-3 py-3 text-right">Products</th>
-                                            <th className="px-3 py-3 text-right">Actions</th>
+                                            <th className="px-3 py-3">{t('categories.table.name')}</th>
+                                            <th className="px-3 py-3 text-right">{t('products.title')}</th>
+                                            <th className="px-3 py-3 text-right">{t('common.actions')}</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -189,7 +191,7 @@ export default function BrandsIndex({ brands }: BrandsProps) {
                                                             <Eye className="h-4 w-4" />
                                                         </Button>
                                                     </Link>
-                                                    <Link href={`/brands/${brand.id}/edit`}>
+                                                    <Link href={brandEdit({ brand: brand.id }).url}>
                                                         <Button variant="ghost" size="icon" className="h-8 w-8">
                                                             <Edit className="h-4 w-4" />
                                                         </Button>
@@ -253,7 +255,7 @@ export default function BrandsIndex({ brands }: BrandsProps) {
                                                     <Eye className="h-3.5 w-3.5" />
                                                 </Button>
                                             </Link>
-                                            <Link href={`/brands/${brand.id}/edit`}>
+                                            <Link href={brandEdit({ brand: brand.id }).url}>
                                                 <Button variant="outline" size="sm" className="h-8">
                                                     <Edit className="h-3.5 w-3.5" />
                                                 </Button>
@@ -369,7 +371,7 @@ export default function BrandsIndex({ brands }: BrandsProps) {
                                                             density === 'sm' ? 'text-xs' : 'text-sm',
                                                         )}
                                                     >
-                                                        {brand.products_count === 1 ? 'product' : 'products'}
+                                                        {brand.products_count === 1 ? t('brands.product_singular') : t('brands.product_plural')}
                                                     </span>
                                                 </div>
                                                 <div
@@ -379,7 +381,7 @@ export default function BrandsIndex({ brands }: BrandsProps) {
                                                     )}
                                                     onClick={(e) => e.stopPropagation()}
                                                 >
-                                                    <Link href={`/brands/${brand.id}/edit`}>
+                                            <Link href={brandEdit({ brand: brand.id }).url}>
                                                         <Button
                                                             variant="outline"
                                                             size="sm"
@@ -388,9 +390,9 @@ export default function BrandsIndex({ brands }: BrandsProps) {
                                                         >
                                                             <Edit className="h-3.5 w-3.5 mr-1" />
                                                             {density === 'sm' ? (
-                                                                <span className="sr-only">Edit</span>
+                                                            <span className="sr-only">{t('common.edit')}</span>
                                                             ) : (
-                                                                'Edit'
+                                                                t('common.edit')
                                                             )}
                                                         </Button>
                                                     </Link>
@@ -405,15 +407,15 @@ export default function BrandsIndex({ brands }: BrandsProps) {
                                                     >
                                                         <Trash2 className="h-3.5 w-3.5 mr-1" />
                                                         {density === 'sm' ? (
-                                                            <span className="sr-only">Delete</span>
+                                                            <span className="sr-only">{t('common.delete')}</span>
                                                         ) : (
-                                                            'Delete'
+                                                            t('common.delete')
                                                         )}
                                                     </Button>
                                                     {selectedBrand === brand.id && (
                                                         <Link href={`${products().url}?brand=${brand.id}`} className="mt-2 w-full">
                                                             <Badge className="w-full justify-center border-0 bg-burgundy py-2 font-sans text-xs uppercase tracking-wide text-white">
-                                                                View Products
+                                                                {t('products.title')}
                                                             </Badge>
                                                         </Link>
                                                     )}
@@ -429,13 +431,13 @@ export default function BrandsIndex({ brands }: BrandsProps) {
                             <Card className="border-burgundy/20 bg-burgundy/5 border-2 rounded-lg">
                                 <CardContent className="p-6">
                                     <p className="text-sm text-gray-700 font-sans text-center">
-                                        Click on a brand card above to filter products by that brand.
+                                        {t('brands.filter_hint')}
                                         <br />
                                         <Link
                                             href={products().url}
                                             className="text-burgundy hover:text-burgundy-dark font-semibold underline mt-2 inline-block"
                                         >
-                                            View all products
+                                            {t('brands.view_all_products')}
                                         </Link>
                                     </p>
                                 </CardContent>

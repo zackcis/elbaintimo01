@@ -1,6 +1,7 @@
 /* REDESIGN: updated for HARIMI UI refresh — kept props unchanged */
+import { useUi } from '@/hooks/use-ui';
 import { Head } from '@inertiajs/react';
-import { Printer, Download } from 'lucide-react';
+import { Printer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface CommandItem {
@@ -17,6 +18,7 @@ interface Command {
     reference: string;
     client_name: string;
     client_email: string;
+    fulfillment_type?: 'pickup' | 'ship';
     status: string;
     total_amount: string;
     notes: string | null;
@@ -29,26 +31,29 @@ interface InvoiceProps {
 }
 
 export default function Invoice({ command }: InvoiceProps) {
+    const { t, locale } = useUi();
+    const dateLocale = locale === 'it' ? 'it-IT' : 'en-US';
+
     const handlePrint = () => {
         window.print();
     };
 
     return (
         <>
-            <Head title={`Bon de Commande ${command.reference} - HARIMI`} />
-            
+            <Head title={`${t('commands.invoice')} ${command.reference} — HARIMI`} />
+
             {/* Print Controls - Hidden when printing */}
-            <div className="no-print fixed top-4 right-4 z-50 flex gap-2 bg-white p-4 rounded-2xl shadow-lg border border-border/80">
+            <div className="no-print fixed top-4 right-4 z-50 flex gap-2 rounded-2xl border border-border/80 bg-white p-4 shadow-lg">
                 <Button onClick={handlePrint} className="bg-burgundy text-white hover:bg-burgundy-dark">
-                    <Printer className="h-4 w-4 mr-2" />
-                    Imprimer
+                    <Printer className="mr-2 h-4 w-4" />
+                    {t('commands.print')}
                 </Button>
                 <Button
                     variant="outline"
                     onClick={() => window.history.back()}
                     className="border-gray-300"
                 >
-                    Retour
+                    {t('commands.back')}
                 </Button>
             </div>
 
@@ -66,17 +71,13 @@ export default function Invoice({ command }: InvoiceProps) {
                             <h1 className="text-2xl font-bold text-gray-900 mb-1">
                                 HARIMI
                             </h1>
-                            <p className="text-sm text-gray-600">
-                                Boutique de lingerie et accessoires
-                            </p>
+                            <p className="text-sm text-gray-600">{t('invoice.company_tagline')}</p>
                         </div>
                         <div className="text-right">
-                            <h2 className="font-serif text-3xl font-bold text-burgundy mb-2 print:text-black">
-                                BON DE COMMANDE
+                            <h2 className="mb-2 font-serif text-3xl font-bold text-burgundy print:text-black">
+                                {t('invoice.document_heading')}
                             </h2>
-                            <p className="text-sm text-gray-600">
-                                Document officiel
-                            </p>
+                            <p className="text-sm text-gray-600">{t('invoice.document_sub')}</p>
                         </div>
                     </div>
                 </div>
@@ -84,20 +85,20 @@ export default function Invoice({ command }: InvoiceProps) {
                 {/* Command Info */}
                 <div className="mb-8 grid grid-cols-2 gap-8">
                     <div>
-                        <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
-                            Informations de la commande
+                        <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-700">
+                            {t('invoice.command_details')}
                         </h3>
                         <div className="space-y-2 text-sm">
                             <div>
-                                <span className="text-gray-600">Référence:</span>
+                                <span className="text-gray-600">{t('invoice.reference')}:</span>
                                 <span className="ml-2 font-semibold text-gray-900">
                                     {command.reference}
                                 </span>
                             </div>
                             <div>
-                                <span className="text-gray-600">Date:</span>
+                                <span className="text-gray-600">{t('invoice.date')}:</span>
                                 <span className="ml-2 font-medium text-gray-900">
-                                    {new Date(command.created_at).toLocaleDateString('fr-FR', {
+                                    {new Date(command.created_at).toLocaleDateString(dateLocale, {
                                         year: 'numeric',
                                         month: 'long',
                                         day: 'numeric',
@@ -105,16 +106,24 @@ export default function Invoice({ command }: InvoiceProps) {
                                 </span>
                             </div>
                             <div>
-                                <span className="text-gray-600">Statut:</span>
-                                <span className="ml-2 font-medium text-gray-900 capitalize">
+                                <span className="text-gray-600">{t('invoice.status')}:</span>
+                                <span className="ml-2 font-medium capitalize text-gray-900">
                                     {command.status}
+                                </span>
+                            </div>
+                            <div>
+                                <span className="text-gray-600">{t('invoice.fulfillment_label')}:</span>
+                                <span className="ml-2 font-medium text-gray-900">
+                                    {command.fulfillment_type === 'ship'
+                                        ? t('invoice.ship_detail')
+                                        : t('invoice.pickup_detail')}
                                 </span>
                             </div>
                         </div>
                     </div>
                     <div>
-                        <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
-                            Client
+                        <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-700">
+                            {t('invoice.client')}
                         </h3>
                         <div className="space-y-2 text-sm">
                             <div className="font-medium text-gray-900">
@@ -132,20 +141,20 @@ export default function Invoice({ command }: InvoiceProps) {
                     <table className="w-full border-collapse">
                         <thead>
                             <tr className="bg-gray-50 border-b-2 border-gray-300">
-                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                                    Produit
+                                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-700">
+                                    {t('invoice.product')}
                                 </th>
-                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                                    Variante
+                                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-700">
+                                    {t('invoice.variant')}
                                 </th>
-                                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                                    Quantité
+                                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-700">
+                                    {t('invoice.qty')}
                                 </th>
-                                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                                    Prix unitaire
+                                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-700">
+                                    {t('invoice.unit_price')}
                                 </th>
-                                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                                    Total
+                                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-700">
+                                    {t('invoice.total')}
                                 </th>
                             </tr>
                         </thead>
@@ -167,13 +176,13 @@ export default function Invoice({ command }: InvoiceProps) {
                                         {item.quantity}
                                     </td>
                                     <td className="px-4 py-4 text-sm text-right text-gray-900">
-                                        {parseFloat(item.unit_price).toLocaleString('fr-FR', {
+                                        {parseFloat(item.unit_price).toLocaleString(dateLocale, {
                                             style: 'currency',
                                             currency: 'EUR',
                                         })}
                                     </td>
-                                    <td className="px-4 py-4 text-sm font-medium text-right text-gray-900">
-                                        {parseFloat(item.total_price).toLocaleString('fr-FR', {
+                                    <td className="px-4 py-4 text-right text-sm font-medium text-gray-900">
+                                        {parseFloat(item.total_price).toLocaleString(dateLocale, {
                                             style: 'currency',
                                             currency: 'EUR',
                                         })}
@@ -184,10 +193,10 @@ export default function Invoice({ command }: InvoiceProps) {
                         <tfoot>
                             <tr className="bg-gray-100 border-t-2 border-gray-300">
                                 <td colSpan={4} className="px-4 py-4 text-right text-sm font-semibold text-gray-900">
-                                    TOTAL
+                                    {t('invoice.total_row')}
                                 </td>
                                 <td className="px-4 py-4 text-right text-lg font-bold text-burgundy">
-                                    {parseFloat(command.total_amount).toLocaleString('fr-FR', {
+                                    {parseFloat(command.total_amount).toLocaleString(dateLocale, {
                                         style: 'currency',
                                         currency: 'EUR',
                                     })}
@@ -200,8 +209,8 @@ export default function Invoice({ command }: InvoiceProps) {
                 {/* Notes */}
                 {command.notes && (
                     <div className="mb-8 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                        <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-2">
-                            Notes
+                        <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-700">
+                            {t('invoice.notes')}
                         </h3>
                         <p className="text-sm text-gray-700 whitespace-pre-wrap">
                             {command.notes}
@@ -211,18 +220,13 @@ export default function Invoice({ command }: InvoiceProps) {
 
                 {/* Footer */}
                 <div className="mt-12 pt-8 border-t-2 border-gray-300">
-                    <div className="text-center text-xs text-gray-500 space-y-1">
-                        <p className="font-medium">
-                            Document généré automatiquement
-                        </p>
-                        <p>
-                            HARIMI - Boutique de lingerie et accessoires
-                        </p>
-                        <p>
-                            Email: contact@harimi.com | Tél: +33 1 23 45 67 89
-                        </p>
+                    <div className="space-y-1 text-center text-xs text-gray-500">
+                        <p className="font-medium">{t('invoice.footer_auto')}</p>
+                        <p>{t('invoice.footer_brand_line')}</p>
+                        <p>{t('invoice.footer_contact')}</p>
                         <p className="mt-4">
-                            Généré le {new Date().toLocaleString('fr-FR')}
+                            {t('invoice.footer_generated_on')}{' '}
+                            {new Date().toLocaleString(dateLocale)}
                         </p>
                     </div>
                 </div>

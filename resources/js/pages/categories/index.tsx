@@ -2,8 +2,10 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { useUi } from '@/hooks/use-ui';
 import AppLayout from '@/layouts/app-layout';
 import { dashboard } from '@/routes';
+import { create as categoriesCreate, destroy as categoryDestroy, edit as categoryEdit, index as categoriesIndex } from '@/routes/categories';
 import { index as productsIndex } from '@/routes/products';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, router } from '@inertiajs/react';
@@ -16,17 +18,6 @@ import { useResourceViewMode } from '@/hooks/use-resource-view-mode';
 import { flattenCategoryTree } from '@/lib/flatten-categories';
 import { cn } from '@/lib/utils';
 import type { ResourceViewMode } from '@/lib/resource-view';
-
-const breadcrumbs: BreadcrumbItem[] = [
-    {
-        title: 'Dashboard',
-        href: dashboard().url,
-    },
-    {
-        title: 'Categories',
-        href: '/categories',
-    },
-];
 
 interface CategoryImage {
     id: number;
@@ -120,6 +111,7 @@ function CategoryActions({
     density?: 'lg' | 'md' | 'sm';
 }) {
     const sm = density === 'sm';
+    const { t } = useUi();
     return (
         <div className={cn('flex flex-wrap items-center gap-2', sm ? 'pt-2' : 'pt-4')}>
             <Link href={`${productsIndex().url}?category=${categoryId}`} className="min-w-[88px] flex-1">
@@ -129,13 +121,13 @@ function CategoryActions({
                     className="w-full border-burgundy/40 text-xs text-burgundy hover:bg-burgundy/10"
                 >
                     <Package className="mr-1 h-3 w-3" />
-                    {sm ? <span className="sr-only">Produits</span> : 'Produits'}
+                    {sm ? <span className="sr-only">{t('products.title')}</span> : t('products.title')}
                 </Button>
             </Link>
-            <Link href={`/categories/${categoryId}/edit`} className="min-w-[88px] flex-1">
+            <Link href={categoryEdit({ category: categoryId }).url} className="min-w-[88px] flex-1">
                 <Button variant="outline" size="sm" className="w-full border-gray-300 text-xs text-gray-700 hover:bg-gray-50">
                     <Edit className="mr-1 h-3 w-3" />
-                    {sm ? <span className="sr-only">Modifier</span> : 'Modifier'}
+                    {sm ? <span className="sr-only">{t('common.edit')}</span> : t('common.edit')}
                 </Button>
             </Link>
             <Button
@@ -145,13 +137,19 @@ function CategoryActions({
                 className="shrink-0 border-red-300 text-xs text-red-600 hover:bg-red-50"
             >
                 <Trash2 className="mr-1 h-3 w-3" />
-                {sm ? <span className="sr-only">Supprimer</span> : 'Supprimer'}
+                {sm ? <span className="sr-only">{t('common.delete')}</span> : t('common.delete')}
             </Button>
         </div>
     );
 }
 
 export default function CategoriesIndex({ categories }: CategoriesProps) {
+    const { t } = useUi();
+    const breadcrumbs: BreadcrumbItem[] = [
+        { title: t('breadcrumb.dashboard'), href: dashboard().url },
+        { title: t('categories.title'), href: categoriesIndex().url },
+    ];
+
     const [isLoading, setIsLoading] = useState(true);
     const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; categoryId: number | null }>({
         open: false,
@@ -174,37 +172,36 @@ export default function CategoriesIndex({ categories }: CategoriesProps) {
 
     const confirmDelete = () => {
         if (deleteDialog.categoryId) {
-            router.delete(`/categories/${deleteDialog.categoryId}`);
+            router.delete(categoryDestroy.url({ category: deleteDialog.categoryId }));
         }
     };
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title="Categories - HARIMI" />
+            <Head title={`${t('categories.title')} - HARIMI`} />
             <ConfirmationDialog
                 open={deleteDialog.open}
                 onClose={() => setDeleteDialog({ open: false, categoryId: null })}
                 onConfirm={confirmDelete}
-                title="Delete Category"
-                description="Are you sure you want to delete this category? This will also delete all subcategories and products. This action cannot be undone."
-                confirmText="Delete"
+                title={t('categories.delete_title')}
+                description={t('categories.delete_desc')}
+                confirmText={t('common.delete')}
                 variant="destructive"
             />
             <div className="flex h-full flex-1 flex-col gap-6 bg-beige/30 p-6 md:p-8">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <div>
-                        <h1 className="mb-1 text-3xl font-semibold text-gray-900">Catégories</h1>
+                        <h1 className="mb-1 text-3xl font-semibold text-gray-900">{t('categories.title')}</h1>
                         <p className="text-sm text-gray-600">
-                            Gérez vos catégories (vue grille, liste ou détail — hiérarchie conservée dans les
-                            données).
+                            {t('categories.subtitle')}
                         </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                         <ResourceViewSwitcher mode={viewMode} onChange={setViewMode} />
-                        <Link href="/categories/create" className="inline-flex">
+                        <Link href={categoriesCreate().url} className="inline-flex">
                             <Button className="bg-burgundy font-medium text-white hover:bg-burgundy-dark">
                                 <Plus className="mr-2 h-4 w-4" />
-                                Nouvelle catégorie
+                                {t('categories.create')}
                             </Button>
                         </Link>
                     </div>
@@ -216,8 +213,8 @@ export default function CategoriesIndex({ categories }: CategoriesProps) {
                     <Card className="border-border/80">
                         <CardContent className="flex flex-col items-center justify-center py-16">
                             <FolderTree className="mb-4 h-12 w-12 text-gray-300" />
-                            <p className="mb-1 text-lg font-medium text-gray-900">Aucune catégorie</p>
-                            <p className="text-sm text-gray-600">Créez votre première catégorie pour commencer.</p>
+                            <p className="mb-1 text-lg font-medium text-gray-900">{t('categories.empty_title')}</p>
+                            <p className="text-sm text-gray-600">{t('categories.empty_desc')}</p>
                         </CardContent>
                     </Card>
                 ) : viewMode === 'details' ? (
@@ -226,11 +223,11 @@ export default function CategoriesIndex({ categories }: CategoriesProps) {
                             <thead>
                                 <tr className="border-b border-border bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                                     <th className="px-3 py-3 w-20"> </th>
-                                    <th className="px-3 py-3">Nom</th>
-                                    <th className="px-3 py-3">Parent</th>
-                                    <th className="px-3 py-3 text-right">Sous-cat.</th>
-                                    <th className="px-3 py-3 text-right">Produits</th>
-                                    <th className="px-3 py-3 text-right">Actions</th>
+                                    <th className="px-3 py-3">{t('categories.table.name')}</th>
+                                    <th className="px-3 py-3">{t('categories.table.parent')}</th>
+                                    <th className="px-3 py-3 text-right">{t('categories.table.subcategories')}</th>
+                                    <th className="px-3 py-3 text-right">{t('categories.table.products')}</th>
+                                    <th className="px-3 py-3 text-right">{t('common.actions')}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -268,7 +265,7 @@ export default function CategoriesIndex({ categories }: CategoriesProps) {
                                                         <Package className="h-4 w-4" />
                                                     </Button>
                                                 </Link>
-                                                <Link href={`/categories/${category.id}/edit`}>
+                                                <Link href={categoryEdit({ category: category.id }).url}>
                                                     <Button variant="ghost" size="icon" className="h-8 w-8">
                                                         <Edit className="h-4 w-4" />
                                                     </Button>
@@ -314,11 +311,11 @@ export default function CategoriesIndex({ categories }: CategoriesProps) {
                                         )}
                                         <div className="mt-1 flex flex-wrap gap-2">
                                             <Badge variant="secondary" className="text-[10px]">
-                                                {subCount} sous-cat.
+                                                {subCount} {t('categories.subcategories_short')}
                                             </Badge>
                                             {category.products_count !== undefined && (
                                                 <Badge variant="outline" className="text-[10px]">
-                                                    {category.products_count} produits
+                                                    {category.products_count} {t('products.title').toLowerCase()}
                                                 </Badge>
                                             )}
                                         </div>
@@ -329,7 +326,7 @@ export default function CategoriesIndex({ categories }: CategoriesProps) {
                                                 <Package className="h-3.5 w-3.5" />
                                             </Button>
                                         </Link>
-                                        <Link href={`/categories/${category.id}/edit`}>
+                                        <Link href={categoryEdit({ category: category.id }).url}>
                                             <Button variant="outline" size="sm" className="h-8">
                                                 <Edit className="h-3.5 w-3.5" />
                                             </Button>
@@ -393,7 +390,7 @@ export default function CategoriesIndex({ categories }: CategoriesProps) {
                                         )}
                                         {subCount > 0 && (
                                             <p className="text-[11px] text-muted-foreground">
-                                                {subCount} sous-catégorie{subCount > 1 ? 's' : ''}
+                                                {subCount} {t('categories.subcategories_label')}
                                             </p>
                                         )}
                                     </CardHeader>

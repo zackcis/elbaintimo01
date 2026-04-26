@@ -12,22 +12,32 @@ use Illuminate\Database\Eloquent\Factories\Factory;
 class ProductFactory extends Factory
 {
     /**
-     * Define the model's default state.
-     *
      * @return array<string, mixed>
      */
     public function definition(): array
     {
         return [
-            'title' => fake()->words(3, true),
-            'description' => fake()->paragraph(3),
             'category_id' => Category::factory(),
+            'brand_id' => null,
+            'tissu' => fake()->optional(0.65)->randomElement(['Coton', 'Soie', 'Dentelle', 'Polyester', 'Laine', 'Modal']),
         ];
     }
 
-    /**
-     * Indicate that the product belongs to a specific category.
-     */
+    public function configure(): static
+    {
+        return $this->afterCreating(function (Product $product): void {
+            $title = fake()->words(3, true);
+            $description = fake()->paragraph(3);
+            foreach (config('harimi.locales', ['it', 'en']) as $loc) {
+                $product->translations()->create([
+                    'locale' => $loc,
+                    'title' => $title,
+                    'description' => $description,
+                ]);
+            }
+        });
+    }
+
     public function forCategory(Category $category): static
     {
         return $this->state(fn (array $attributes) => [

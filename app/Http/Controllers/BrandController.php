@@ -21,8 +21,10 @@ class BrandController extends Controller
      */
     public function index(): Response
     {
-        $brands = Brand::withCount('products')
-            ->orderBy('name')
+        $brands = Brand::query()
+            ->with(['translations'])
+            ->withCount('products')
+            ->adminOrderByName()
             ->get();
 
         return Inertia::render('brands/index', [
@@ -49,10 +51,17 @@ class BrandController extends Controller
         }
 
         $brand = Brand::create([
-            'name' => $request->name,
             'logo' => $logoPath,
         ]);
 
+        foreach (config('harimi.locales', ['it', 'en']) as $loc) {
+            $brand->translations()->create([
+                'locale' => $loc,
+                'name' => (string) $request->input("name.$loc"),
+            ]);
+        }
+
+        $brand->load('translations');
         $this->logActivity('created', 'Brand', $brand->id, "Marque '{$brand->name}' créée");
 
         return redirect()->route('brands.index')
@@ -74,7 +83,12 @@ class BrandController extends Controller
      */
     public function update(UpdateBrandRequest $request, Brand $brand): RedirectResponse
     {
-        $brand->update(['name' => $request->name]);
+        foreach (config('harimi.locales', ['it', 'en']) as $loc) {
+            $brand->translations()->updateOrCreate(
+                ['locale' => $loc],
+                ['name' => (string) $request->input("name.$loc")],
+            );
+        }
 
         if ($request->hasFile('logo') && $request->file('logo')->isValid()) {
             if ($brand->logo) {
@@ -84,6 +98,7 @@ class BrandController extends Controller
             $brand->update(['logo' => $logoPath]);
         }
 
+        $brand->load('translations');
         $this->logActivity('updated', 'Brand', $brand->id, "Marque '{$brand->name}' modifiée");
 
         return redirect()->route('brands.index')
@@ -95,6 +110,7 @@ class BrandController extends Controller
      */
     public function destroy(Brand $brand): RedirectResponse
     {
+        $brand->load('translations');
         $name = $brand->name;
         if ($brand->logo) {
             $this->deleteImage($brand->logo);
@@ -123,6 +139,7 @@ class BrandController extends Controller
         $logoPath = $this->storeImage($request->file('logo'), 'brands');
         $brand->update(['logo' => $logoPath]);
 
+        $brand->load('translations');
         $this->logActivity('updated', 'Brand', $brand->id, "Logo de la marque '{$brand->name}' mis à jour");
 
         return redirect()->back()

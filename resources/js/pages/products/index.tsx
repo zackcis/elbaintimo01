@@ -1,10 +1,12 @@
 /* REDESIGN: updated for HARIMI UI refresh — kept props unchanged */
 import { Badge } from '@/components/ui/badge';
+import { useUi } from '@/hooks/use-ui';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/app-layout';
 import { dashboard } from '@/routes';
-import { index as productsIndex } from '@/routes/products';
+import { create as productsCreate, destroy as productDestroy, edit as productEdit, index as productsIndex, show as productShow } from '@/routes/products';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { Package, Tag, Plus, Edit, Trash2, Eye, X } from 'lucide-react';
@@ -19,17 +21,6 @@ import { ResourceViewSwitcher } from '@/components/resource-view-switcher';
 import { useResourceViewMode } from '@/hooks/use-resource-view-mode';
 import { cn } from '@/lib/utils';
 import type { ResourceViewMode } from '@/lib/resource-view';
-
-const breadcrumbs: BreadcrumbItem[] = [
-    {
-        title: 'Dashboard',
-        href: dashboard().url,
-    },
-    {
-        title: 'Products',
-        href: productsIndex().url,
-    },
-];
 
 interface Category {
     id: number;
@@ -63,6 +54,7 @@ interface Product {
     description: string | null;
     category: Category;
     brand: Brand | null;
+    tissu?: string | null;
     variants: ProductVariant[];
     images: ProductImage[];
     created_at: string;
@@ -90,6 +82,7 @@ interface FilterEntity {
 interface ProductFilters {
     brand_id: number | null;
     category_id: number | null;
+    tissu?: string | null;
     brand: FilterEntity | null;
     category: FilterEntity | null;
 }
@@ -97,6 +90,7 @@ interface ProductFilters {
 interface ProductsProps {
     products: ProductsData;
     filters?: ProductFilters;
+    tissuOptions?: string[];
 }
 
 function productGridClass(mode: ResourceViewMode): string {
@@ -111,7 +105,13 @@ function productGridClass(mode: ResourceViewMode): string {
     }
 }
 
-export default function ProductsIndex({ products, filters }: ProductsProps) {
+export default function ProductsIndex({ products, filters, tissuOptions = [] }: ProductsProps) {
+    const { t, locale } = useUi();
+    const dateLocale = locale === 'it' ? 'it-IT' : 'en-US';
+    const breadcrumbs: BreadcrumbItem[] = [
+        { title: t('breadcrumb.dashboard'), href: dashboard().url },
+        { title: t('products.title'), href: productsIndex().url },
+    ];
     const page = usePage();
     const toast = useToast();
     const [isLoading, setIsLoading] = useState(true);
@@ -127,7 +127,7 @@ export default function ProductsIndex({ products, filters }: ProductsProps) {
             setIsLoading(false);
         }, 400);
         return () => clearTimeout(timer);
-    }, [filters?.brand_id, filters?.category_id]);
+    }, [filters?.brand_id, filters?.category_id, filters?.tissu]);
 
     // Show success message if redirected with success
     const flash = (page.props as { flash?: { success?: string } }).flash;
@@ -158,48 +158,96 @@ export default function ProductsIndex({ products, filters }: ProductsProps) {
 
     const confirmDelete = () => {
         if (deleteDialog.productId) {
-            router.delete(`/products/${deleteDialog.productId}`, {
+            router.delete(productDestroy.url({ product: deleteDialog.productId }), {
                 onSuccess: () => {
-                    toast.success('Product deleted successfully.');
+                    toast.success(t('products.deleted_success'));
                 },
             });
         }
     };
 
+    const tissuSelectOptions = (() => {
+        const set = new Set(tissuOptions);
+        if (filters?.tissu && !set.has(filters.tissu)) {
+            set.add(filters.tissu);
+        }
+        return [...set].sort((a, b) => a.localeCompare(b, 'fr'));
+    })();
+
+    const hasActiveFilters = !!(filters?.brand_id || filters?.category_id || filters?.tissu);
+
+    const applyTissuFilter = (tissu: string) => {
+        const params: Record<string, string | number> = {};
+        if (filters?.brand_id) {
+            params.brand = filters.brand_id;
+        }
+        if (filters?.category_id) {
+            params.category = filters.category_id;
+        }
+        if (tissu) {
+            params.tissu = tissu;
+        }
+        router.get(productsIndex().url, params, { preserveState: true, preserveScroll: true });
+    };
+
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title="Products - HARIMI" />
+            <Head title={`${t('products.title')} - HARIMI`} />
             <ToastContainer toasts={toast.toasts} onClose={toast.removeToast} />
             <ConfirmationDialog
                 open={deleteDialog.open}
                 onClose={() => setDeleteDialog({ open: false, productId: null })}
                 onConfirm={confirmDelete}
-                title="Delete Product"
-                description="Are you sure you want to delete this product? This action cannot be undone."
-                confirmText="Delete"
+                title={t('products.delete_title')}
+                description={t('products.delete_desc')}
+                confirmText={t('common.delete')}
                 variant="destructive"
             />
             <div className="flex h-full flex-1 flex-col gap-6 p-8 bg-beige/30">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                         <h1 className="font-serif text-3xl font-semibold text-foreground mb-1">
-                            Produits
+                            {t('products.title')}
                         </h1>
                         <p className="text-sm text-muted-foreground">
-                            {products.total} produit{products.total !== 1 ? 's' : ''}
-                            {filters?.brand_id || filters?.category_id ? ' (filtrés)' : ' au total'}
+                            {products.total} {t('products.total_label')}
                         </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                         <ResourceViewSwitcher mode={viewMode} onChange={setViewMode} />
-                        <Link href="/products/create" className="inline-flex">
+                        <Link href={productsCreate().url} className="inline-flex">
                             <Button>
                                 <Plus className="h-4 w-4 mr-2" />
-                                Nouveau produit
+                                {t('products.create')}
                             </Button>
                         </Link>
                     </div>
                 </div>
+
+                {(tissuSelectOptions.length > 0 || filters?.tissu) && (
+                    <Card className="border-border/80 shadow-sm">
+                        <CardContent className="flex flex-wrap items-end gap-4 py-4">
+                            <div className="grid min-w-[200px] max-w-md flex-1 gap-2">
+                                <Label htmlFor="filter-tissu" className="text-sm font-medium text-muted-foreground">
+                                    {t('products.filter_tissu')}
+                                </Label>
+                                <select
+                                    id="filter-tissu"
+                                    value={filters?.tissu ?? ''}
+                                    onChange={(e) => applyTissuFilter(e.target.value)}
+                                    className="flex h-9 w-full rounded-md border border-border/80 bg-white px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-burgundy focus-visible:ring-[3px] focus-visible:ring-burgundy/30"
+                                >
+                                    <option value="">{t('products.filter_all_tissus')}</option>
+                                    {tissuSelectOptions.map((t) => (
+                                        <option key={t} value={t}>
+                                            {t}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
 
                 {isLoading ? (
                     <ProductListSkeleton count={6} />
@@ -210,44 +258,41 @@ export default function ProductsIndex({ products, filters }: ProductsProps) {
                                 icon={Package}
                                 title="Aucun produit"
                                 description={
-                                    filters?.brand_id || filters?.category_id
-                                        ? 'Aucun produit ne correspond à ces filtres. Modifiez la marque ou la catégorie, ou réinitialisez les filtres.'
+                                    hasActiveFilters
+                                        ? 'Aucun produit ne correspond à ces filtres. Modifiez les critères ou réinitialisez les filtres.'
                                         : 'Aucun produit pour le moment. Créez votre premier produit pour commencer à gérer votre catalogue.'
                                 }
-                                actionLabel={
-                                    filters?.brand_id || filters?.category_id
-                                        ? 'Voir tous les produits'
-                                        : 'Créer un produit'
-                                }
-                                actionHref={
-                                    filters?.brand_id || filters?.category_id
-                                        ? productsIndex().url
-                                        : '/products/create'
-                                }
+                                actionLabel={hasActiveFilters ? 'Voir tous les produits' : 'Créer un produit'}
+                                actionHref={hasActiveFilters ? productsIndex().url : productsCreate().url}
                             />
                         </CardContent>
                     </Card>
                 ) : (
                     <>
-                        {(filters?.brand || filters?.category) && (
+                        {(filters?.brand || filters?.category || filters?.tissu) && (
                             <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border/80 bg-white px-4 py-3 shadow-sm">
-                                <span className="text-sm font-medium text-muted-foreground">Filtres actifs :</span>
+                                <span className="text-sm font-medium text-muted-foreground">{t('products.active_filters')}</span>
                                 {filters.brand && (
                                     <Badge variant="secondary" className="gap-1.5 pl-2 pr-1 py-1 font-sans">
                                         <Tag className="h-3 w-3" />
-                                        Marque : {filters.brand.name}
+                                        {t('brands.title')}: {filters.brand.name}
                                     </Badge>
                                 )}
                                 {filters.category && (
                                     <Badge variant="secondary" className="gap-1.5 pl-2 pr-1 py-1 font-sans">
                                         <Package className="h-3 w-3" />
-                                        Catégorie : {filters.category.name}
+                                        {t('categories.title')}: {filters.category.name}
+                                    </Badge>
+                                )}
+                                {filters.tissu && (
+                                    <Badge variant="secondary" className="gap-1.5 pl-2 pr-1 py-1 font-sans">
+                                        {t('products.tissu')}: {filters.tissu}
                                     </Badge>
                                 )}
                                 <Link href={productsIndex().url} className="ml-auto inline-flex">
                                     <Button variant="outline" size="sm" className="h-8 gap-1 text-xs">
                                         <X className="h-3.5 w-3.5" />
-                                        Réinitialiser
+                                        {t('products.reset_filters')}
                                     </Button>
                                 </Link>
                             </div>
@@ -261,6 +306,7 @@ export default function ProductsIndex({ products, filters }: ProductsProps) {
                                             <th className="px-3 py-3">Produit</th>
                                             <th className="px-3 py-3">Catégorie</th>
                                             <th className="px-3 py-3">Marque</th>
+                                            <th className="px-3 py-3">Tissu</th>
                                             <th className="px-3 py-3 text-right">Variantes</th>
                                             <th className="px-3 py-3 text-right">Prix</th>
                                             <th className="px-3 py-3 text-right">Stock</th>
@@ -281,7 +327,7 @@ export default function ProductsIndex({ products, filters }: ProductsProps) {
                                                 >
                                                     <td className="px-3 py-2 align-middle">
                                                         <Link
-                                                            href={`/products/${product.id}`}
+                                                            href={productShow({ product: product.id }).url}
                                                             className="relative block h-14 w-14 overflow-hidden rounded-lg bg-beige"
                                                         >
                                                             {primaryImage ? (
@@ -299,7 +345,7 @@ export default function ProductsIndex({ products, filters }: ProductsProps) {
                                                     </td>
                                                     <td className="px-3 py-2 align-middle font-medium text-foreground">
                                                         <Link
-                                                            href={`/products/${product.id}`}
+                                                            href={productShow({ product: product.id }).url}
                                                             className="hover:text-burgundy hover:underline"
                                                         >
                                                             {product.title}
@@ -310,6 +356,9 @@ export default function ProductsIndex({ products, filters }: ProductsProps) {
                                                     </td>
                                                     <td className="px-3 py-2 align-middle text-muted-foreground">
                                                         {product.brand?.name ?? '—'}
+                                                    </td>
+                                                    <td className="px-3 py-2 align-middle text-muted-foreground">
+                                                        {product.tissu?.trim() ? product.tissu : '—'}
                                                     </td>
                                                     <td className="px-3 py-2 align-middle text-right tabular-nums">
                                                         {product.variants.length}
@@ -334,12 +383,12 @@ export default function ProductsIndex({ products, filters }: ProductsProps) {
                                                     </td>
                                                     <td className="px-3 py-2 align-middle text-right">
                                                         <div className="flex justify-end gap-1">
-                                                            <Link href={`/products/${product.id}`}>
+                                                            <Link href={productShow({ product: product.id }).url}>
                                                                 <Button variant="ghost" size="icon" className="h-8 w-8">
                                                                     <Eye className="h-4 w-4" />
                                                                 </Button>
                                                             </Link>
-                                                            <Link href={`/products/${product.id}/edit`}>
+                                                            <Link href={productEdit({ product: product.id }).url}>
                                                                 <Button variant="ghost" size="icon" className="h-8 w-8">
                                                                     <Edit className="h-4 w-4" />
                                                                 </Button>
@@ -373,7 +422,7 @@ export default function ProductsIndex({ products, filters }: ProductsProps) {
                                             className="flex flex-wrap items-center gap-4 rounded-xl border border-border/80 bg-white p-3 shadow-sm transition-shadow hover:shadow-md"
                                         >
                                             <Link
-                                                href={`/products/${product.id}`}
+                                                href={productShow({ product: product.id }).url}
                                                 className="relative h-20 w-20 shrink-0 overflow-hidden rounded-lg bg-beige"
                                             >
                                                 {primaryImage ? (
@@ -390,7 +439,7 @@ export default function ProductsIndex({ products, filters }: ProductsProps) {
                                             </Link>
                                             <div className="min-w-0 flex-1">
                                                 <Link
-                                                    href={`/products/${product.id}`}
+                                                    href={productShow({ product: product.id }).url}
                                                     className="font-semibold text-foreground hover:text-burgundy"
                                                 >
                                                     {product.title}
@@ -398,6 +447,7 @@ export default function ProductsIndex({ products, filters }: ProductsProps) {
                                                 <p className="text-xs text-muted-foreground">
                                                     {product.category.name}
                                                     {product.brand ? ` · ${product.brand.name}` : ''}
+                                                    {product.tissu?.trim() ? ` · ${product.tissu}` : ''}
                                                 </p>
                                                 <div className="mt-1 flex flex-wrap items-center gap-2">
                                                     <Badge variant="secondary" className="text-[10px]">
@@ -417,12 +467,12 @@ export default function ProductsIndex({ products, filters }: ProductsProps) {
                                                 </span>
                                             </div>
                                             <div className="flex shrink-0 gap-1">
-                                                <Link href={`/products/${product.id}`}>
+                                                <Link href={productShow({ product: product.id }).url}>
                                                     <Button variant="outline" size="sm" className="h-8">
                                                         <Eye className="h-3.5 w-3.5" />
                                                     </Button>
                                                 </Link>
-                                                <Link href={`/products/${product.id}/edit`}>
+                                                <Link href={productEdit({ product: product.id }).url}>
                                                     <Button variant="outline" size="sm" className="h-8">
                                                         <Edit className="h-3.5 w-3.5" />
                                                     </Button>
@@ -469,7 +519,7 @@ export default function ProductsIndex({ products, filters }: ProductsProps) {
                                             )}
                                         >
                                             <div className="relative aspect-square bg-beige overflow-hidden">
-                                                <Link href={`/products/${product.id}`}>
+                                                <Link href={productShow({ product: product.id }).url}>
                                                     {primaryImage ? (
                                                         <>
                                                             <img
@@ -508,7 +558,7 @@ export default function ProductsIndex({ products, filters }: ProductsProps) {
                                                         density === 'sm' && 'gap-1',
                                                     )}
                                                 >
-                                                    <Link href={`/products/${product.id}`}>
+                                                    <Link href={productShow({ product: product.id }).url}>
                                                         <Button
                                                             size="sm"
                                                             className={cn(
@@ -524,7 +574,7 @@ export default function ProductsIndex({ products, filters }: ProductsProps) {
                                                             )}
                                                         </Button>
                                                     </Link>
-                                                    <Link href={`/products/${product.id}/edit`}>
+                                                    <Link href={productEdit({ product: product.id }).url}>
                                                         <Button
                                                             size="sm"
                                                             variant="outline"
@@ -582,7 +632,7 @@ export default function ProductsIndex({ products, filters }: ProductsProps) {
                                                 className={cn(density === 'sm' && 'space-y-0 p-3 pb-2 pt-2')}
                                             >
                                                 <div className="flex items-start justify-between gap-2">
-                                                    <Link href={`/products/${product.id}`} className="min-w-0 flex-1">
+                                                    <Link href={productShow({ product: product.id }).url} className="min-w-0 flex-1">
                                                         <CardTitle
                                                             className={cn(
                                                                 'line-clamp-2 font-semibold text-gray-900 transition-colors group-hover:text-burgundy cursor-pointer',
@@ -613,6 +663,7 @@ export default function ProductsIndex({ products, filters }: ProductsProps) {
                                                     >
                                                         {product.category.name}
                                                         {product.brand ? ` · ${product.brand.name}` : ''}
+                                                        {product.tissu?.trim() ? ` · ${product.tissu}` : ''}
                                                     </span>
                                                 </div>
                                             </CardHeader>

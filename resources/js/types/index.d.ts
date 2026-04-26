@@ -22,11 +22,20 @@ export interface NavItem {
     isActive?: boolean;
 }
 
+export interface HarimiShared {
+    locales: string[];
+    adminListLocale: string;
+    publicDefaultLocale: string;
+    currentLocale: string;
+}
+
 export interface SharedData {
     name: string;
     quote: { message: string; author: string };
     auth: Auth;
     sidebarOpen: boolean;
+    harimi: HarimiShared;
+    ui: Record<string, string>;
     [key: string]: unknown;
 }
 

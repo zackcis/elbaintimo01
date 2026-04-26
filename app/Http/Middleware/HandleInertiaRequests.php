@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\File;
 use Inertia\Middleware;
 
 class HandleInertiaRequests extends Middleware
@@ -38,9 +39,21 @@ class HandleInertiaRequests extends Middleware
     {
         [$message, $author] = str(Inspiring::quotes()->random())->explode('-');
 
+        $routeLocale = $request->route('locale');
+        $currentLocale = is_string($routeLocale) && in_array($routeLocale, config('harimi.locales', ['it', 'en']), true)
+            ? $routeLocale
+            : config('harimi.public_default_locale', 'it');
+
         return [
             ...parent::share($request),
             'name' => config('app.name'),
+            'harimi' => [
+                'locales' => config('harimi.locales', ['it', 'en']),
+                'adminListLocale' => config('harimi.admin_list_locale', 'it'),
+                'publicDefaultLocale' => config('harimi.public_default_locale', 'it'),
+                'currentLocale' => $currentLocale,
+            ],
+            'ui' => fn () => $this->loadUiDictionary($currentLocale),
             'quote' => ['message' => trim($message), 'author' => trim($author)],
             'auth' => [
                 'user' => $request->user() ? [
@@ -56,5 +69,24 @@ class HandleInertiaRequests extends Middleware
                 'error' => $request->session()->get('error'),
             ],
         ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    protected function loadUiDictionary(string $locale): array
+    {
+        $path = lang_path($locale.'/ui.json');
+        if (! is_file($path)) {
+            $path = lang_path('en/ui.json');
+        }
+
+        if (! is_file($path)) {
+            return [];
+        }
+
+        $decoded = json_decode(File::get($path), true);
+
+        return is_array($decoded) ? $decoded : [];
     }
 }

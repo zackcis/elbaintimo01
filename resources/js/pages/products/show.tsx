@@ -4,7 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import AppLayout from '@/layouts/app-layout';
 import { dashboard } from '@/routes';
-import { index as products } from '@/routes/products';
+import { destroy as destroyProductImage } from '@/routes/products/images';
+import { index as products, show as productShow } from '@/routes/products';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, router } from '@inertiajs/react';
 import {
@@ -25,6 +26,7 @@ import { getColorHex, isLightColor } from '@/lib/color-utils';
 import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { ToastContainer } from '@/components/toast';
+import { useUi } from '@/hooks/use-ui';
 
 interface Category {
     id: number;
@@ -48,6 +50,7 @@ interface ProductVariant {
     id: number;
     size: string | null;
     color: string | null;
+    color_hex: string | null;
     price: string;
     stock: number;
 }
@@ -58,6 +61,7 @@ interface Product {
     description: string | null;
     category: Category;
     brand: Brand | null;
+    tissu: string | null;
     variants: ProductVariant[];
     images: ProductImage[];
     created_at: string;
@@ -77,6 +81,61 @@ function initialImageIndex(images: ProductImage[]): number {
 
 export default function ProductsShow({ product, relatedProducts }: ProductsShowProps) {
     const toast = useToast();
+    const { t, locale } = useUi();
+    const ts = useCallback(
+        (key: string) => {
+            const translated = t(key);
+            if (translated !== key) {
+                return translated;
+            }
+
+            const fallbacks: Record<string, { it: string; en: string }> = {
+                'products.show.not_available': { it: 'N/D', en: 'N/A' },
+                'products.show.image_order_demo': {
+                    it: 'Ordine immagini aggiornato (modalita demo - modifiche non salvate)',
+                    en: 'Image order updated (demo mode - changes not saved)',
+                },
+                'products.show.confirm_delete_image': {
+                    it: 'Sei sicuro di voler eliminare questa immagine?',
+                    en: 'Are you sure you want to delete this image?',
+                },
+                'products.show.image_deleted_success': {
+                    it: 'Immagine eliminata con successo.',
+                    en: 'Image deleted successfully.',
+                },
+                'products.show.back_to_products': { it: 'Torna ai prodotti', en: 'Back to products' },
+                'products.show.primary': { it: 'Principale', en: 'Primary' },
+                'products.show.previous_image': { it: 'Immagine precedente', en: 'Previous image' },
+                'products.show.next_image': { it: 'Immagine successiva', en: 'Next image' },
+                'products.show.go_to_image': { it: "Vai all'immagine", en: 'Go to image' },
+                'products.show.thumbnail': { it: 'Miniatura', en: 'Thumbnail' },
+                'products.show.delete_image': { it: 'Elimina immagine', en: 'Delete image' },
+                'products.show.description': { it: 'Descrizione', en: 'Description' },
+                'products.show.price': { it: 'Prezzo', en: 'Price' },
+                'products.show.stock': { it: 'Scorte', en: 'Stock' },
+                'products.show.available_variants': { it: 'Varianti disponibili', en: 'Available variants' },
+                'products.show.size': { it: 'Taglia', en: 'Size' },
+                'products.show.color': { it: 'Colore', en: 'Color' },
+                'products.show.variants': { it: 'varianti', en: 'variants' },
+                'products.show.no_variants_match': {
+                    it: 'Nessuna variante corrisponde ai filtri selezionati',
+                    en: 'No variants match the selected filters',
+                },
+                'products.show.units': { it: 'unita', en: 'units' },
+                'products.show.more_from': { it: 'Altri prodotti di', en: 'More from' },
+                'products.show.discover_more_brand': {
+                    it: 'Scopri altri prodotti di questo marchio',
+                    en: 'Discover other products from this brand',
+                },
+                'products.show.stock_status.in_stock': { it: 'Disponibile', en: 'In stock' },
+                'products.show.stock_status.low_stock': { it: 'Scorte basse', en: 'Low stock' },
+                'products.show.stock_status.out_of_stock': { it: 'Esaurito', en: 'Out of stock' },
+            };
+
+            return fallbacks[key]?.[locale === 'it' ? 'it' : 'en'] ?? key;
+        },
+        [locale, t],
+    );
     const [selectedImageIndex, setSelectedImageIndex] = useState(() =>
         initialImageIndex(product.images),
     );
@@ -91,13 +150,13 @@ export default function ProductsShow({ product, relatedProducts }: ProductsShowP
     };
 
     const getPriceRange = (variants: ProductVariant[]) => {
-        if (variants.length === 0) return 'N/A';
+        if (variants.length === 0) return ts('products.show.not_available');
         const prices = variants.map((v) => parseFloat(v.price));
         const min = Math.min(...prices);
         const max = Math.max(...prices);
         return min === max
-            ? `$${min.toFixed(2)}`
-            : `$${min.toFixed(2)} - $${max.toFixed(2)}`;
+            ? `${min.toFixed(2)} €`
+            : `${min.toFixed(2)} € - ${max.toFixed(2)} €`;
     };
 
     const getTotalStock = (variants: ProductVariant[]) => {
@@ -107,15 +166,35 @@ export default function ProductsShow({ product, relatedProducts }: ProductsShowP
     const priceRange = getPriceRange(product.variants);
     const totalStock = getTotalStock(product.variants);
     const stockInfo = getStockStatusInfo(totalStock);
+    const stockStatusLabel = ts(`products.show.stock_status.${stockInfo.status}`);
 
     // Get unique sizes and colors
     const sizes = Array.from(new Set(product.variants.map(v => v.size).filter(Boolean))) as string[];
-    const colors = Array.from(new Set(product.variants.map(v => v.color).filter(Boolean))) as string[];
+    const colorOptions = Array.from(
+        new Map(
+            product.variants
+                .map((variant) => {
+                    const label = (variant.color ?? variant.color_hex ?? '').trim();
+                    if (label === '') {
+                        return null;
+                    }
+
+                    return [
+                        label,
+                        {
+                            label,
+                            hex: variant.color_hex || getColorHex(variant.color),
+                        },
+                    ] as const;
+                })
+                .filter((entry): entry is readonly [string, { label: string; hex: string }] => entry !== null),
+        ).values(),
+    );
 
     // Get filtered variants based on selection
     const filteredVariants = product.variants.filter(v => {
         if (selectedSize && v.size !== selectedSize) return false;
-        if (selectedColor && v.color !== selectedColor) return false;
+        if (selectedColor && (v.color ?? v.color_hex ?? null) !== selectedColor) return false;
         return true;
     });
 
@@ -182,14 +261,14 @@ export default function ProductsShow({ product, relatedProducts }: ProductsShowP
     const handleDragEnd = () => {
         setDraggedImageIndex(null);
         // In a real implementation, you would save the new order to the backend
-        toast.info('Image order updated (demo mode - changes not saved)');
+        toast.info(ts('products.show.image_order_demo'));
     };
 
     const handleDeleteImage = (imageId: number) => {
-        if (confirm('Are you sure you want to delete this image?')) {
-            router.delete(`/products/${product.id}/images/${imageId}`, {
+        if (confirm(ts('products.show.confirm_delete_image'))) {
+            router.delete(destroyProductImage.url({ product: product.id, productImage: imageId }), {
                 onSuccess: () => {
-                    toast.success('Image deleted successfully.');
+                    toast.success(ts('products.show.image_deleted_success'));
                     setSortedImages((prev) => {
                         const next = prev.filter((img) => img.id !== imageId);
                         setSelectedImageIndex((i) =>
@@ -204,11 +283,11 @@ export default function ProductsShow({ product, relatedProducts }: ProductsShowP
 
     const breadcrumbs: BreadcrumbItem[] = [
         {
-            title: 'Dashboard',
+            title: t('nav.dashboard'),
             href: dashboard().url,
         },
         {
-            title: 'Products',
+            title: t('nav.products'),
             href: products().url,
         },
         {
@@ -221,20 +300,20 @@ export default function ProductsShow({ product, relatedProducts }: ProductsShowP
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title={`${product.title} - HARIMI`} />
             <ToastContainer toasts={toast.toasts} onClose={toast.removeToast} />
-            <div className="flex h-full flex-1 flex-col gap-8 p-6 bg-beige-light">
+            <div className="flex min-w-0 h-full flex-1 flex-col gap-8 p-6 bg-beige-light">
                 {/* Back Button */}
                 <Link
                     href={products().url}
                     className="inline-flex items-center gap-2 text-burgundy hover:text-burgundy-dark font-sans uppercase tracking-wide text-sm transition-colors"
                 >
                     <ArrowLeft className="h-4 w-4" />
-                    Back to Products
+                    {ts('products.show.back_to_products')}
                 </Link>
 
                 {/* Product Details */}
-                <div className="grid gap-8 lg:grid-cols-2">
+                <div className="grid min-w-0 gap-8 lg:grid-cols-2 lg:items-start">
                     {/* Product Image Gallery */}
-                    <div className="space-y-4">
+                    <div className="min-w-0 space-y-4">
                         {/* Image carousel: swipe / scroll-snap + arrows + dots */}
                         <Card className="overflow-hidden border-gray-200 shadow-sm rounded-lg">
                             <div className="relative bg-beige">
@@ -277,7 +356,7 @@ export default function ProductsShow({ product, relatedProducts }: ProductsShowP
                                                     </div>
                                                     {image.is_primary && (
                                                         <Badge className="absolute top-3 left-3 z-10 bg-burgundy font-sans text-xs uppercase tracking-wide text-white border-0">
-                                                            Primary
+                                                            {ts('products.show.primary')}
                                                         </Badge>
                                                     )}
                                                 </div>
@@ -288,7 +367,7 @@ export default function ProductsShow({ product, relatedProducts }: ProductsShowP
                                             <>
                                                 <button
                                                     type="button"
-                                                    aria-label="Previous image"
+                                                    aria-label={ts('products.show.previous_image')}
                                                     onClick={() => {
                                                         const i = Math.max(0, selectedImageIndex - 1);
                                                         setSelectedImageIndex(i);
@@ -301,7 +380,7 @@ export default function ProductsShow({ product, relatedProducts }: ProductsShowP
                                                 </button>
                                                 <button
                                                     type="button"
-                                                    aria-label="Next image"
+                                                    aria-label={ts('products.show.next_image')}
                                                     onClick={() => {
                                                         const i = Math.min(
                                                             sortedImages.length - 1,
@@ -326,7 +405,7 @@ export default function ProductsShow({ product, relatedProducts }: ProductsShowP
                                                             <button
                                                                 key={i}
                                                                 type="button"
-                                                                aria-label={`Go to image ${i + 1}`}
+                                                                aria-label={`${ts('products.show.go_to_image')} ${i + 1}`}
                                                                 aria-current={
                                                                     i === selectedImageIndex ? 'true' : undefined
                                                                 }
@@ -385,7 +464,7 @@ export default function ProductsShow({ product, relatedProducts }: ProductsShowP
                                         {image.path ? (
                                             <img
                                                 src={`/storage/${image.path}`}
-                                                alt={`Thumbnail ${index + 1}`}
+                                                alt={`${ts('products.show.thumbnail')} ${index + 1}`}
                                                 className="w-full h-full object-cover"
                                                 onError={(e) => {
                                                     const target = e.target as HTMLImageElement;
@@ -416,7 +495,7 @@ export default function ProductsShow({ product, relatedProducts }: ProductsShowP
                                                         handleDeleteImage(image.id);
                                                     }}
                                                     className="absolute top-1 right-1 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 transition-all z-10"
-                                                    title="Delete image"
+                                                    title={ts('products.show.delete_image')}
                                                 >
                                                     <X className="h-3 w-3" />
                                                 </button>
@@ -442,85 +521,108 @@ export default function ProductsShow({ product, relatedProducts }: ProductsShowP
                                     className="border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700 font-sans uppercase tracking-wide text-xs"
                                 >
                                     <X className="h-3 w-3 mr-2" />
-                                    Delete Image
+                                    {ts('products.show.delete_image')}
                                 </Button>
                             </div>
                         )}
                     </div>
 
                     {/* Product Info */}
-                    <div className="space-y-6">
-                        {/* Breadcrumb */}
-                        <div className="flex items-center gap-2 text-sm text-gray-600 font-sans">
-                            <Link href={dashboard().url} className="hover:text-burgundy transition-colors">
-                                Dashboard
+                    <div className="min-w-0 max-w-full space-y-6">
+                        {/* Trail (compact; avoids competing with app header breadcrumbs) */}
+                        <nav
+                            className="flex min-w-0 flex-wrap items-center gap-x-1 gap-y-1 text-xs font-medium text-gray-500 sm:text-sm"
+                            aria-label="Breadcrumb"
+                        >
+                            <Link href={dashboard().url} className="hover:text-burgundy">
+                                {t('nav.dashboard')}
                             </Link>
-                            <ChevronRight className="h-4 w-4" />
-                            <Link href={products().url} className="hover:text-burgundy transition-colors">
-                                Products
+                            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-gray-400" aria-hidden />
+                            <Link href={products().url} className="hover:text-burgundy">
+                                {t('nav.products')}
                             </Link>
-                            <ChevronRight className="h-4 w-4" />
-                            <span className="text-burgundy font-semibold">{product.category.name}</span>
-                        </div>
+                            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-gray-400" aria-hidden />
+                            <span className="truncate text-burgundy">{product.category.name}</span>
+                        </nav>
 
-                        <div>
-                            <div className="flex items-start justify-between gap-4 mb-3">
-                                <h1 className="text-4xl font-serif font-bold tracking-tight text-burgundy">
+                        <div className="min-w-0 space-y-4">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                                <h1 className="min-w-0 max-w-full text-3xl font-semibold tracking-tight text-burgundy sm:text-4xl break-words font-sans">
                                     {product.title}
                                 </h1>
                                 {product.brand && (
-                                    <div className="flex flex-col items-end gap-2">
-                                        <Badge className="bg-burgundy text-white font-sans text-sm uppercase tracking-wide border-0 px-3 py-1">
-                                            {product.brand.name}
-                                        </Badge>
-                                        {product.brand.logo && (
-                                            <div className="text-xs text-gray-500 font-sans">
-                                                Brand Logo
-                                            </div>
-                                        )}
+                                    <Badge className="w-fit shrink-0 border-0 bg-gray-900 px-3 py-1.5 font-sans text-xs font-medium uppercase tracking-wide text-white sm:mt-1">
+                                        {product.brand.name}
+                                    </Badge>
+                                )}
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2">
+                                <div className="inline-flex items-center gap-2 rounded-full border border-gray-200/90 bg-white/70 px-3 py-1 text-xs font-medium uppercase tracking-wide text-gray-600">
+                                    <Tag className="h-3.5 w-3.5 text-burgundy" aria-hidden />
+                                    <span className="truncate">{product.category.name}</span>
+                                </div>
+                                {product.tissu && (
+                                    <div className="inline-flex items-center gap-2 rounded-full border border-gray-200/90 bg-white/70 px-3 py-1 text-xs font-medium tracking-wide text-gray-600">
+                                        <ShoppingBag className="h-3.5 w-3.5 text-burgundy" aria-hidden />
+                                        <span className="truncate">{product.tissu}</span>
                                     </div>
                                 )}
                             </div>
-                            <div className="flex items-center gap-4 text-sm text-gray-600 font-sans mb-4">
-                                <div className="flex items-center gap-2">
-                                    <Tag className="h-4 w-4" />
-                                    <span className="uppercase tracking-wide">
-                                        {product.category.name}
-                                    </span>
-                                </div>
-                            </div>
                             {product.description && (
-                                <p className="text-base text-gray-700 font-sans leading-relaxed">
-                                    {product.description}
-                                </p>
+                                <div className="min-w-0 rounded-lg border border-gray-200/90 bg-white/90 px-4 py-3 shadow-sm">
+                                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                        {ts('products.show.description')}
+                                    </p>
+                                    <div
+                                        className="max-w-full text-[15px] leading-relaxed text-gray-700 font-sans whitespace-pre-wrap [overflow-wrap:anywhere] [word-break:break-word] hyphens-auto"
+                                    >
+                                        {product.description}
+                                    </div>
+                                </div>
                             )}
                         </div>
 
                         {/* Price and Stock */}
-                        <div className="grid grid-cols-2 gap-4 pt-4 border-t border-gray-200">
-                            <div className="flex items-center gap-2.5">
-                                <DollarSign className="h-5 w-5 text-burgundy flex-shrink-0" />
-                                <div>
-                                    <p className="text-xs text-gray-500 font-sans uppercase tracking-wide">
-                                        Price
+                        <div className="grid grid-cols-1 gap-3 border-t border-gray-200/90 pt-4 sm:grid-cols-2">
+                            <div className="flex min-w-0 items-stretch gap-3 rounded-lg border border-gray-200/90 bg-white/80 px-4 py-3">
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-burgundy/10 text-burgundy">
+                                    <DollarSign className="h-5 w-5" aria-hidden />
+                                </div>
+                                <div className="min-w-0">
+                                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                        {ts('products.show.price')}
                                     </p>
-                                    <p className="font-serif font-bold text-burgundy text-xl">
+                                    <p className="truncate text-xl font-semibold tabular-nums tracking-tight text-burgundy">
                                         {priceRange}
                                     </p>
                                 </div>
                             </div>
-                            <div className="flex items-center gap-2.5">
-                                <Box className="h-5 w-5 text-burgundy flex-shrink-0" />
-                                <div>
-                                    <p className="text-xs text-gray-500 font-sans uppercase tracking-wide">
-                                        Stock
+                            <div className="flex min-w-0 items-stretch gap-3 rounded-lg border border-gray-200/90 bg-white/80 px-4 py-3">
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-burgundy/10 text-burgundy">
+                                    <Box className="h-5 w-5" aria-hidden />
+                                </div>
+                                <div className="min-w-0">
+                                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                        {ts('products.show.stock')}
                                     </p>
-                                    <div className="flex items-center gap-2">
-                                        <p className="font-serif font-bold text-xl" style={{ color: stockInfo.color === 'green' ? '#16a34a' : stockInfo.color === 'orange' ? '#ea580c' : '#dc2626' }}>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <p
+                                            className="text-xl font-semibold tabular-nums"
+                                            style={{
+                                                color:
+                                                    stockInfo.color === 'green'
+                                                        ? '#16a34a'
+                                                        : stockInfo.color === 'orange'
+                                                          ? '#ea580c'
+                                                          : '#dc2626',
+                                            }}
+                                        >
                                             {totalStock}
                                         </p>
-                                        <Badge className={`${stockInfo.bgColor} ${stockInfo.textColor} border-0 font-sans text-xs`}>
-                                            {stockInfo.label}
+                                        <Badge
+                                            className={`${stockInfo.bgColor} ${stockInfo.textColor} border-0 font-sans text-xs`}
+                                        >
+                                            {stockStatusLabel}
                                         </Badge>
                                     </div>
                                 </div>
@@ -528,28 +630,29 @@ export default function ProductsShow({ product, relatedProducts }: ProductsShowP
                         </div>
 
                         {/* Variants Section */}
-                        <div className="pt-4 border-t border-gray-200 space-y-4">
-                            <h3 className="text-lg font-serif font-semibold text-burgundy">
-                                Available Variants
+                        <div className="space-y-5 border-t border-gray-200/90 pt-4">
+                            <h3 className="text-lg font-semibold tracking-tight text-burgundy font-sans">
+                                {ts('products.show.available_variants')}
                             </h3>
 
                             {/* Size Selection */}
                             {sizes.length > 0 && (
                                 <div>
-                                    <p className="text-sm font-sans font-semibold text-gray-700 mb-2 uppercase tracking-wide">
-                                        Size
+                                    <p className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-700 font-sans">
+                                        {ts('products.show.size')}
                                     </p>
                                     <div className="flex flex-wrap gap-2">
                                         {sizes.map((size) => (
                                             <button
                                                 key={size}
+                                                type="button"
                                                 onClick={() => {
                                                     setSelectedSize(selectedSize === size ? null : size);
                                                 }}
-                                                className={`px-4 py-2 rounded-sm border-2 font-sans text-sm uppercase tracking-wide transition-all ${
+                                                className={`min-w-[2.75rem] shrink-0 rounded-md border-2 px-4 py-2 text-center font-sans text-sm font-medium uppercase tracking-wide transition-all ${
                                                     selectedSize === size
-                                                        ? 'border-burgundy bg-burgundy text-white'
-                                                        : 'border-border bg-white text-gray-700 hover:border-burgundy/50'
+                                                        ? 'border-burgundy bg-burgundy text-white shadow-sm'
+                                                        : 'border-gray-200 bg-white text-gray-800 hover:border-burgundy/40 hover:bg-beige-light/80'
                                                 }`}
                                             >
                                                 {size}
@@ -560,30 +663,33 @@ export default function ProductsShow({ product, relatedProducts }: ProductsShowP
                             )}
 
                             {/* Color Selection */}
-                            {colors.length > 0 && (
+                            {colorOptions.length > 0 && (
                                 <div>
-                                    <p className="text-sm font-sans font-semibold text-gray-700 mb-2 uppercase tracking-wide">
-                                        Color
+                                    <p className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-700 font-sans">
+                                        {ts('products.show.color')}
                                     </p>
                                     <div className="flex flex-wrap gap-3">
-                                        {colors.map((color) => {
-                                            const colorHex = getColorHex(color);
+                                        {colorOptions.map((colorOption) => {
+                                            const colorHex = colorOption.hex;
                                             const isLight = isLightColor(colorHex);
                                             return (
                                                 <button
-                                                    key={color}
+                                                    key={colorOption.label}
+                                                    type="button"
                                                     onClick={() => {
-                                                        setSelectedColor(selectedColor === color ? null : color);
+                                                        setSelectedColor(
+                                                            selectedColor === colorOption.label ? null : colorOption.label,
+                                                        );
                                                     }}
-                                                    className={`relative w-12 h-12 rounded-full border-2 transition-all ${
-                                                        selectedColor === color
-                                                            ? 'border-burgundy ring-2 ring-burgundy/30 scale-110'
-                                                            : 'border-border hover:border-gray-400'
+                                                    className={`relative h-11 w-11 shrink-0 rounded-full border-2 shadow-sm ring-1 ring-black/5 transition-all ${
+                                                        selectedColor === colorOption.label
+                                                            ? 'scale-105 border-burgundy ring-2 ring-burgundy/35'
+                                                            : 'border-gray-300 hover:border-gray-500'
                                                     }`}
                                                     style={{ backgroundColor: colorHex }}
-                                                    title={color}
+                                                    title={colorOption.label}
                                                 >
-                                                    {selectedColor === color && (
+                                                    {selectedColor === colorOption.label && (
                                                         <div className="absolute inset-0 flex items-center justify-center">
                                                             <Star className={`h-5 w-5 ${isLight ? 'text-gray-800' : 'text-white'}`} fill="currentColor" />
                                                         </div>
@@ -598,12 +704,12 @@ export default function ProductsShow({ product, relatedProducts }: ProductsShowP
                             {/* Variant List */}
                             <div>
                                 <p className="text-sm font-sans font-semibold text-gray-700 mb-2 uppercase tracking-wide">
-                                    Variants ({filteredVariants.length})
+                                    {ts('products.show.variants')} ({filteredVariants.length})
                                 </p>
                                 <div className="space-y-2 max-h-64 overflow-y-auto">
                                     {filteredVariants.length === 0 ? (
                                         <p className="text-sm text-gray-500 font-sans text-center py-4">
-                                            No variants match the selected filters
+                                            {ts('products.show.no_variants_match')}
                                         </p>
                                     ) : (
                                         filteredVariants.map((variant) => {
@@ -611,9 +717,9 @@ export default function ProductsShow({ product, relatedProducts }: ProductsShowP
                                             return (
                                                 <div
                                                     key={variant.id}
-                                                    className="flex items-center justify-between p-3 bg-white border border-gray-200 rounded-sm hover:border-burgundy/50 transition-colors"
+                                                    className="flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-md border border-gray-200 bg-white p-3 transition-colors hover:border-burgundy/40"
                                                 >
-                                                    <div className="flex items-center gap-3">
+                                                    <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
                                                         {variant.size && (
                                                             <Badge variant="outline" className="font-sans text-xs">
                                                                 {variant.size}
@@ -625,7 +731,7 @@ export default function ProductsShow({ product, relatedProducts }: ProductsShowP
                                                                     className="w-4 h-4 rounded-full border border-border"
                                                                     style={{ backgroundColor: getColorHex(variant.color) }}
                                                                 />
-                                                                <span className="text-xs text-gray-600 font-sans">
+                                                                <span className="min-w-0 max-w-full text-xs text-gray-600 font-sans [overflow-wrap:anywhere] [word-break:break-word]">
                                                                     {variant.color}
                                                                 </span>
                                                             </div>
@@ -633,10 +739,10 @@ export default function ProductsShow({ product, relatedProducts }: ProductsShowP
                                                     </div>
                                                     <div className="flex items-center gap-4">
                                                         <span className="font-serif font-semibold text-burgundy">
-                                                            ${parseFloat(variant.price).toFixed(2)}
+                                                            {parseFloat(variant.price).toFixed(2)} €
                                                         </span>
                                                         <Badge className={`${variantStockInfo.bgColor} ${variantStockInfo.textColor} border-0 font-sans text-xs`}>
-                                                            {variant.stock} units
+                                                            {variant.stock} {ts('products.show.units')}
                                                         </Badge>
                                                     </div>
                                                 </div>
@@ -655,10 +761,10 @@ export default function ProductsShow({ product, relatedProducts }: ProductsShowP
                         <div className="flex items-center justify-between mb-6">
                             <div>
                                 <h2 className="text-3xl font-serif font-bold tracking-tight text-burgundy mb-2">
-                                    More from {product.brand.name}
+                                    {ts('products.show.more_from')} {product.brand.name}
                                 </h2>
                                 <p className="text-sm text-gray-600 font-sans">
-                                    Discover other products from this brand
+                                    {ts('products.show.discover_more_brand')}
                                 </p>
                             </div>
                             <ShoppingBag className="h-8 w-8 text-burgundy" />
@@ -675,7 +781,7 @@ export default function ProductsShow({ product, relatedProducts }: ProductsShowP
                                 return (
                                     <Link
                                         key={relatedProduct.id}
-                                        href={`/products/${relatedProduct.id}`}
+                                        href={productShow({ product: relatedProduct.id }).url}
                                     >
                                         <Card className="overflow-hidden hover:shadow-lg transition-all duration-150 border-gray-200 rounded-lg group cursor-pointer">
                                             <div className="aspect-[3/4] bg-beige relative overflow-hidden">
@@ -722,7 +828,7 @@ export default function ProductsShow({ product, relatedProducts }: ProductsShowP
                                                     </span>
                                                     <Badge className="bg-burgundy text-white font-sans text-xs uppercase tracking-wide border-0">
                                                         {relatedProduct.variants.length}{' '}
-                                                        variants
+                                                        {ts('products.show.variants')}
                                                     </Badge>
                                                 </div>
                                             </CardContent>

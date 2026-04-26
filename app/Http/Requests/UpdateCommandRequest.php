@@ -24,6 +24,7 @@ class UpdateCommandRequest extends FormRequest
         return [
             'client_name' => ['required', 'string', 'max:255'],
             'client_email' => ['required', 'email', 'max:255'],
+            'fulfillment_type' => ['required', 'string', 'in:pickup,ship'],
             'status' => ['required', 'string', 'in:pending,confirmed,shipped,cancelled'],
             'notes' => ['nullable', 'string'],
             'items' => ['nullable', 'array', 'min:1'],

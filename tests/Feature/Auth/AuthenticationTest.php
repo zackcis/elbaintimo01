@@ -51,12 +51,12 @@ class AuthenticationTest extends TestCase
             'two_factor_confirmed_at' => now(),
         ])->save();
 
-        $response = $this->post(route('login'), [
+        $response = $this->post(route('login.store'), [
             'email' => $user->email,
             'password' => 'password',
         ]);
 
-        $response->assertRedirect(route('two-factor.login'));
+        $response->assertRedirect(route('two-factor.login', absolute: false));
         $response->assertSessionHas('login.id', $user->id);
         $this->assertGuest();
     }
@@ -80,7 +80,7 @@ class AuthenticationTest extends TestCase
         $response = $this->actingAs($user)->post(route('logout'));
 
         $this->assertGuest();
-        $response->assertRedirect(route('home'));
+        $response->assertRedirect(route('storefront.home', ['locale' => 'it'], false));
     }
 
     public function test_users_are_rate_limited()

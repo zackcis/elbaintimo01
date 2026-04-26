@@ -7,6 +7,9 @@
  */
 export function getColorHex(colorName: string | null): string {
     if (!colorName) return '#CCCCCC';
+    if (/^#([A-Fa-f0-9]{6})$/.test(colorName.trim())) {
+        return colorName.trim().toUpperCase();
+    }
     
     const colorMap: Record<string, string> = {
         black: '#000000',
