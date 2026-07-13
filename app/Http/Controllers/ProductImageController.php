@@ -16,7 +16,7 @@ class ProductImageController extends Controller
     /**
      * Store a newly created image in storage.
      */
-    public function store(Request $request, Product $product): RedirectResponse
+    public function store(Request $request, string $locale, Product $product): RedirectResponse
     {
         $request->validate([
             'path' => ['required', 'string'],
@@ -38,7 +38,7 @@ class ProductImageController extends Controller
     /**
      * Remove the specified image from storage.
      */
-    public function destroy(Product $product, ProductImage $productImage): RedirectResponse
+    public function destroy(string $locale, Product $product, ProductImage $productImage): RedirectResponse
     {
         // Delete file from storage
         $this->deleteImage($productImage->path);

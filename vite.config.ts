@@ -24,4 +24,10 @@ export default defineConfig({
     esbuild: {
         jsx: 'automatic',
     },
+    
+
+     // ✅ ADD THIS
+     build: {
+        manifest: true,
+    },
 });

@@ -91,7 +91,7 @@ class CategoryController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show(Category $category): Response
+    public function show(string $locale, Category $category): Response
     {
         $category->load([
             'translations',
@@ -110,7 +110,7 @@ class CategoryController extends Controller
     /**
      * Show the form for editing the specified resource.
      */
-    public function edit(Category $category): Response
+    public function edit(string $locale, Category $category): Response
     {
         $category->load(['parent', 'children', 'images']);
 
@@ -123,7 +123,7 @@ class CategoryController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(UpdateCategoryRequest $request, Category $category): RedirectResponse
+    public function update(UpdateCategoryRequest $request, string $locale, Category $category): RedirectResponse
     {
         $category->update([
             'parent_id' => $request->input('parent_id') ?: null,
@@ -192,7 +192,7 @@ class CategoryController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(Category $category): RedirectResponse
+    public function destroy(string $locale, Category $category): RedirectResponse
     {
         $category->delete();
 

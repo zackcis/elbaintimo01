@@ -71,7 +71,7 @@ class BrandController extends Controller
     /**
      * Show the form for editing the specified brand.
      */
-    public function edit(Brand $brand): Response
+    public function edit(string $locale, Brand $brand): Response
     {
         return Inertia::render('brands/edit', [
             'brand' => $brand,
@@ -81,7 +81,7 @@ class BrandController extends Controller
     /**
      * Update the specified brand.
      */
-    public function update(UpdateBrandRequest $request, Brand $brand): RedirectResponse
+    public function update(UpdateBrandRequest $request, string $locale, Brand $brand): RedirectResponse
     {
         foreach (config('harimi.locales', ['it', 'en']) as $loc) {
             $brand->translations()->updateOrCreate(
@@ -108,7 +108,7 @@ class BrandController extends Controller
     /**
      * Remove the specified brand.
      */
-    public function destroy(Brand $brand): RedirectResponse
+    public function destroy(string $locale, Brand $brand): RedirectResponse
     {
         $brand->load('translations');
         $name = $brand->name;
@@ -126,7 +126,7 @@ class BrandController extends Controller
     /**
      * Update brand logo (legacy route for backward compatibility).
      */
-    public function updateLogo(Request $request, Brand $brand): RedirectResponse
+    public function updateLogo(Request $request, string $locale, Brand $brand): RedirectResponse
     {
         $request->validate([
             'logo' => ['required', 'image', 'mimes:jpeg,png,jpg,gif,webp', 'max:5120'],

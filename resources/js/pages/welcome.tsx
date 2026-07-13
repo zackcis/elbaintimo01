@@ -1,6 +1,9 @@
 /* REDESIGN: updated for HARIMI UI refresh — kept props unchanged */
 import { LocaleSwitcher } from '@/components/locale-switcher';
-import { LocaleWayfinderSync } from '@/components/locale-wayfinder-sync';
+import {
+    LocaleWayfinderSync,
+    syncHarimiWayfinderDefaults,
+} from '@/components/locale-wayfinder-sync';
 import { useUi } from '@/hooks/use-ui';
 import { dashboard, login, register } from '@/routes';
 import { type SharedData } from '@/types';
@@ -11,8 +14,12 @@ export default function Welcome({
 }: {
     canRegister?: boolean;
 }) {
-    const { auth } = usePage<SharedData>().props;
+    const page = usePage<SharedData>();
+    syncHarimiWayfinderDefaults(page);
+    const { auth } = page.props;
     const { t } = useUi();
+
+    const loginVisit = login();
 
     return (
         <>
@@ -38,7 +45,7 @@ export default function Welcome({
                         ) : (
                             <>
                                 <Link
-                                    href={login()}
+                                    href={loginVisit}
                                     className="inline-block rounded-[10px] border border-transparent px-5 py-2 text-sm font-medium text-foreground transition-colors duration-200 hover:border-border"
                                 >
                                     {t('welcome.log_in')}
@@ -65,7 +72,7 @@ export default function Welcome({
                             {!auth.user && (
                                 <div className="flex flex-wrap gap-3">
                                     <Link
-                                        href={login()}
+                                        href={loginVisit}
                                         className="inline-flex items-center justify-center rounded-[10px] bg-burgundy px-4 py-2.5 text-sm font-medium text-white transition-colors duration-200 hover:bg-burgundy-dark"
                                     >
                                         {t('welcome.log_in')}
