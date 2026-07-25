@@ -37,6 +37,11 @@ class StoreProductRequest extends FormRequest
                 // Keep invalid non-empty value so nullable|regex fails (do not silently drop).
                 $variants[$i]['color_hex'] = $trimmed;
             }
+
+            $compareAt = $row['compare_at_price'] ?? null;
+            if ($compareAt === null || $compareAt === '') {
+                $variants[$i]['compare_at_price'] = null;
+            }
         }
         $this->merge(['variants' => $variants]);
     }
@@ -51,6 +56,10 @@ class StoreProductRequest extends FormRequest
             'title.en' => ['required', 'string', 'max:255'],
             'description.it' => ['nullable', 'string'],
             'description.en' => ['nullable', 'string'],
+            'care_notes.it' => ['nullable', 'string'],
+            'care_notes.en' => ['nullable', 'string'],
+            'fit_notes.it' => ['nullable', 'string'],
+            'fit_notes.en' => ['nullable', 'string'],
             'category_id' => ['required', 'exists:categories,id'],
             'brand_id' => ['nullable', 'exists:brands,id'],
             'tissu' => ['nullable', 'string', 'max:255'],
@@ -62,6 +71,7 @@ class StoreProductRequest extends FormRequest
             'variants.*.color' => ['required', 'string', 'max:255'],
             'variants.*.color_hex' => ['required', 'string', 'regex:/^#([A-Fa-f0-9]{6})$/'],
             'variants.*.price' => ['required', 'numeric', 'min:0', 'max:999999.99'],
+            'variants.*.compare_at_price' => ['nullable', 'numeric', 'min:0', 'max:999999.99'],
             'variants.*.stock' => ['required', 'integer', 'min:0'],
             'images' => ['nullable', 'array'],
             'images.*.file' => ['nullable', 'image', 'mimes:jpeg,png,jpg,gif,webp', 'max:5120'],
@@ -75,18 +85,40 @@ class StoreProductRequest extends FormRequest
     {
         $validator->after(function (ValidatorInstance $v): void {
             if ($this->filled('brand_id')) {
+                // continue to discount checks
+            } else {
+                $it = $this->input('new_brand_name.it');
+                $en = $this->input('new_brand_name.en');
+                if ((filled($it) || filled($en)) && (! filled($it) || ! filled($en))) {
+                    $v->errors()->add(
+                        'new_brand_name.it',
+                        'Italian and English brand names are both required when adding a new brand.',
+                    );
+                }
+            }
+
+            $variants = $this->input('variants', []);
+            if (! is_array($variants)) {
                 return;
             }
-            $it = $this->input('new_brand_name.it');
-            $en = $this->input('new_brand_name.en');
-            if (! filled($it) && ! filled($en)) {
-                return;
-            }
-            if (! filled($it) || ! filled($en)) {
-                $v->errors()->add(
-                    'new_brand_name.it',
-                    'Italian and English brand names are both required when adding a new brand.',
-                );
+            foreach ($variants as $i => $row) {
+                if (! is_array($row)) {
+                    continue;
+                }
+                $compareAt = $row['compare_at_price'] ?? null;
+                if ($compareAt === null || $compareAt === '') {
+                    continue;
+                }
+                $price = $row['price'] ?? null;
+                if (! is_numeric($price) || ! is_numeric($compareAt)) {
+                    continue;
+                }
+                if ((float) $compareAt <= (float) $price) {
+                    $v->errors()->add(
+                        "variants.{$i}.compare_at_price",
+                        'Was price must be higher than the selling price to show a discount.',
+                    );
+                }
             }
         });
     }

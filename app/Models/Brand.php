@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\StorefrontLocale;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -16,6 +17,7 @@ class Brand extends Model
      */
     protected $fillable = [
         'logo',
+        'hero_path',
     ];
 
     /**
@@ -37,18 +39,48 @@ class Brand extends Model
         return $this->hasMany(BrandTranslation::class);
     }
 
+    public function translationFor(string $locale): ?BrandTranslation
+    {
+        $translations = $this->relationLoaded('translations')
+            ? $this->translations
+            : $this->translations()->get();
+
+        return $translations->firstWhere('locale', $locale)
+            ?? $translations->firstWhere('locale', StorefrontLocale::fallback());
+    }
+
     public function nameForLocale(string $locale): string
     {
-        if ($this->relationLoaded('translations')) {
-            return (string) ($this->translations->firstWhere('locale', $locale)?->name ?? '');
-        }
+        return (string) ($this->translationFor($locale)?->name ?? '');
+    }
 
-        return (string) ($this->translations()->where('locale', $locale)->value('name') ?? '');
+    public function slugForLocale(string $locale): string
+    {
+        return (string) ($this->translationFor($locale)?->slug ?? '');
     }
 
     public function getNameAttribute(): string
     {
         return $this->nameForLocale((string) config('harimi.admin_list_locale', 'it'));
+    }
+
+    public function scopeWhereStorefrontSlug(Builder $query, string $slug, string $locale): Builder
+    {
+        $fallback = StorefrontLocale::fallback();
+
+        $brandId = BrandTranslation::query()
+            ->where('slug', $slug)
+            ->where('locale', $locale)
+            ->value('brand_id');
+
+        if ($brandId === null && $locale !== $fallback) {
+            $brandId = BrandTranslation::query()
+                ->where('slug', $slug)
+                ->where('locale', $fallback)
+                ->value('brand_id');
+        }
+
+        return $query->where('id', $brandId ?? 0);
     }
 
     public function scopeAdminOrderByName(Builder $query): Builder

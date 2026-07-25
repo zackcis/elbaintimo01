@@ -12,8 +12,12 @@ class CommandItem extends Model
 
     protected $fillable = [
         'command_id',
+        'product_id',
+        'product_variant_id',
         'product_name',
         'variant',
+        'size',
+        'color',
         'quantity',
         'unit_price',
         'total_price',
@@ -27,11 +31,18 @@ class CommandItem extends Model
         ];
     }
 
-    /**
-     * Get the command that owns the item.
-     */
     public function command(): BelongsTo
     {
         return $this->belongsTo(Command::class);
+    }
+
+    public function product(): BelongsTo
+    {
+        return $this->belongsTo(Product::class);
+    }
+
+    public function productVariant(): BelongsTo
+    {
+        return $this->belongsTo(ProductVariant::class);
     }
 }

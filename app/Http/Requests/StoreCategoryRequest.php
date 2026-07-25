@@ -23,6 +23,8 @@ class StoreCategoryRequest extends FormRequest
             'images' => ['nullable', 'array'],
             'images.*.file' => ['nullable', 'image', 'mimes:jpeg,png,jpg,gif,webp', 'max:5120'],
             'images.*.path' => ['nullable', 'string'],
+            'hero' => ['nullable', 'image', 'mimes:jpeg,png,jpg,gif,webp', 'max:5120'],
+            'clear_hero' => ['nullable', 'boolean'],
         ];
     }
 }

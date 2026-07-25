@@ -27,6 +27,7 @@ interface Category {
     id: number;
     name: string;
     parent_id: number | null;
+    hero_path?: string | null;
     translations?: CategoryTranslationRow[];
     images?: CategoryImage[];
 }
@@ -59,6 +60,8 @@ export default function EditCategory({ category, parentOptions }: CategoryFormPr
 
     const existingImage = category.images && category.images.length > 0 ? category.images[0] : null;
     const [imageFile, setImageFile] = useState<File | null>(null);
+    const [heroFile, setHeroFile] = useState<File | null>(null);
+    const [clearHero, setClearHero] = useState(false);
 
     const nameFor = (loc: string) => category.translations?.find((t) => t.locale === loc)?.name ?? category.name;
 
@@ -79,6 +82,12 @@ export default function EditCategory({ category, parentOptions }: CategoryFormPr
         } else if (existingImage) {
             uploadData.append('images[0][id]', existingImage.id.toString());
             uploadData.append('images[0][path]', existingImage.path);
+        }
+
+        if (heroFile) {
+            uploadData.append('hero', heroFile);
+        } else if (clearHero) {
+            uploadData.append('clear_hero', '1');
         }
 
         router.post(categoryUpdate.url({ category: category.id }), uploadData, {
@@ -174,6 +183,44 @@ export default function EditCategory({ category, parentOptions }: CategoryFormPr
                                 preview={existingImage ? `/storage/${existingImage.path}` : null}
                                 label={t('categories.image_optional')}
                             />
+                        </CardContent>
+                    </Card>
+
+                    <Card className="border-gray-200 shadow-sm rounded-lg">
+                        <CardHeader className="bg-white">
+                            <CardTitle className="text-xl font-serif font-bold text-burgundy">
+                                {t('categories.hero')}
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-3 bg-white pt-4">
+                            <SingleImageUpload
+                                value={heroFile || (!clearHero ? category.hero_path : null)}
+                                onChange={(file) => {
+                                    setHeroFile(file);
+                                    if (file) {
+                                        setClearHero(false);
+                                    }
+                                }}
+                                preview={
+                                    !clearHero && category.hero_path
+                                        ? `/storage/${category.hero_path}`
+                                        : null
+                                }
+                                label={t('categories.hero_optional')}
+                            />
+                            {category.hero_path && !clearHero ? (
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    className="border-gray-300"
+                                    onClick={() => {
+                                        setHeroFile(null);
+                                        setClearHero(true);
+                                    }}
+                                >
+                                    {t('site_media.clear')}
+                                </Button>
+                            ) : null}
                         </CardContent>
                     </Card>
 

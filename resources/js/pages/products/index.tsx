@@ -55,6 +55,7 @@ interface Product {
     category: Category;
     brand: Brand | null;
     tissu?: string | null;
+    is_published?: boolean;
     variants: ProductVariant[];
     images: ProductImage[];
     created_at: string;
@@ -344,12 +345,24 @@ export default function ProductsIndex({ products, filters, tissuOptions = [] }: 
                                                         </Link>
                                                     </td>
                                                     <td className="px-3 py-2 align-middle font-medium text-foreground">
-                                                        <Link
-                                                            href={productShow({ product: product.id }).url}
-                                                            className="hover:text-burgundy hover:underline"
-                                                        >
-                                                            {product.title}
-                                                        </Link>
+                                                        <div className="flex flex-wrap items-center gap-2">
+                                                            <Link
+                                                                href={productShow({ product: product.id }).url}
+                                                                className="hover:text-burgundy hover:underline"
+                                                            >
+                                                                {product.title}
+                                                            </Link>
+                                                            <Badge
+                                                                variant="outline"
+                                                                className={
+                                                                    product.is_published
+                                                                        ? 'border-emerald-600/30 bg-emerald-50 text-emerald-800 text-[10px] uppercase'
+                                                                        : 'border-amber-600/30 bg-amber-50 text-amber-800 text-[10px] uppercase'
+                                                                }
+                                                            >
+                                                                {product.is_published ? 'Published' : 'Draft'}
+                                                            </Badge>
+                                                        </div>
                                                     </td>
                                                     <td className="px-3 py-2 align-middle text-muted-foreground">
                                                         {product.category.name}
@@ -644,15 +657,28 @@ export default function ProductsIndex({ products, filters, tissuOptions = [] }: 
                                                             {product.title}
                                                         </CardTitle>
                                                     </Link>
-                                                    <Badge
-                                                        variant="secondary"
-                                                        className={cn(
-                                                            'shrink-0',
-                                                            density === 'sm' ? 'text-[10px]' : 'text-xs',
-                                                        )}
-                                                    >
-                                                        {product.variants.length}
-                                                    </Badge>
+                                                    <div className="flex shrink-0 flex-col items-end gap-1">
+                                                        <Badge
+                                                            variant="outline"
+                                                            className={cn(
+                                                                'uppercase',
+                                                                density === 'sm' ? 'text-[9px]' : 'text-[10px]',
+                                                                product.is_published
+                                                                    ? 'border-emerald-600/30 bg-emerald-50 text-emerald-800'
+                                                                    : 'border-amber-600/30 bg-amber-50 text-amber-800',
+                                                            )}
+                                                        >
+                                                            {product.is_published ? 'Published' : 'Draft'}
+                                                        </Badge>
+                                                        <Badge
+                                                            variant="secondary"
+                                                            className={cn(
+                                                                density === 'sm' ? 'text-[10px]' : 'text-xs',
+                                                            )}
+                                                        >
+                                                            {product.variants.length}
+                                                        </Badge>
+                                                    </div>
                                                 </div>
                                                 <div className={cn('mt-2', density === 'sm' && 'mt-1')}>
                                                     <span

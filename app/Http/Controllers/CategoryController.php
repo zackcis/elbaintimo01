@@ -50,9 +50,11 @@ class CategoryController extends Controller
         ]);
 
         foreach (config('harimi.locales', ['it', 'en']) as $loc) {
+            $name = (string) $request->input("name.$loc");
             $category->translations()->create([
                 'locale' => $loc,
-                'name' => (string) $request->input("name.$loc"),
+                'slug' => \App\Support\UniqueSlug::make($name, 'category_translations', $loc),
+                'name' => $name,
             ]);
         }
 
@@ -79,6 +81,12 @@ class CategoryController extends Controller
                     ]);
                 }
             }
+        }
+
+        if ($request->hasFile('hero') && $request->file('hero')->isValid()) {
+            $category->update([
+                'hero_path' => $this->storeImage($request->file('hero'), 'categories/heroes'),
+            ]);
         }
 
         $category->load('translations');
@@ -130,9 +138,14 @@ class CategoryController extends Controller
         ]);
 
         foreach (config('harimi.locales', ['it', 'en']) as $loc) {
+            $name = (string) $request->input("name.$loc");
+            $existing = $category->translations()->where('locale', $loc)->first();
             $category->translations()->updateOrCreate(
                 ['locale' => $loc],
-                ['name' => (string) $request->input("name.$loc")],
+                [
+                    'slug' => \App\Support\UniqueSlug::make($name, 'category_translations', $loc, $existing?->id),
+                    'name' => $name,
+                ],
             );
         }
 
@@ -180,6 +193,18 @@ class CategoryController extends Controller
                     }
                 }
             }
+        }
+
+        if ($request->boolean('clear_hero') && $category->hero_path) {
+            $this->deleteImage($category->hero_path);
+            $category->update(['hero_path' => null]);
+        } elseif ($request->hasFile('hero') && $request->file('hero')->isValid()) {
+            if ($category->hero_path) {
+                $this->deleteImage($category->hero_path);
+            }
+            $category->update([
+                'hero_path' => $this->storeImage($request->file('hero'), 'categories/heroes'),
+            ]);
         }
 
         $category->load('translations');

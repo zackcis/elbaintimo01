@@ -55,9 +55,17 @@ class BrandController extends Controller
         ]);
 
         foreach (config('harimi.locales', ['it', 'en']) as $loc) {
+            $name = (string) $request->input("name.$loc");
             $brand->translations()->create([
                 'locale' => $loc,
-                'name' => (string) $request->input("name.$loc"),
+                'slug' => \App\Support\UniqueSlug::make($name, 'brand_translations', $loc),
+                'name' => $name,
+            ]);
+        }
+
+        if ($request->hasFile('hero') && $request->file('hero')->isValid()) {
+            $brand->update([
+                'hero_path' => $this->storeImage($request->file('hero'), 'brands/heroes'),
             ]);
         }
 
@@ -84,9 +92,14 @@ class BrandController extends Controller
     public function update(UpdateBrandRequest $request, string $locale, Brand $brand): RedirectResponse
     {
         foreach (config('harimi.locales', ['it', 'en']) as $loc) {
+            $name = (string) $request->input("name.$loc");
+            $existing = $brand->translations()->where('locale', $loc)->first();
             $brand->translations()->updateOrCreate(
                 ['locale' => $loc],
-                ['name' => (string) $request->input("name.$loc")],
+                [
+                    'slug' => \App\Support\UniqueSlug::make($name, 'brand_translations', $loc, $existing?->id),
+                    'name' => $name,
+                ],
             );
         }
 
@@ -96,6 +109,18 @@ class BrandController extends Controller
             }
             $logoPath = $this->storeImage($request->file('logo'), 'brands');
             $brand->update(['logo' => $logoPath]);
+        }
+
+        if ($request->boolean('clear_hero') && $brand->hero_path) {
+            $this->deleteImage($brand->hero_path);
+            $brand->update(['hero_path' => null]);
+        } elseif ($request->hasFile('hero') && $request->file('hero')->isValid()) {
+            if ($brand->hero_path) {
+                $this->deleteImage($brand->hero_path);
+            }
+            $brand->update([
+                'hero_path' => $this->storeImage($request->file('hero'), 'brands/heroes'),
+            ]);
         }
 
         $brand->load('translations');
@@ -114,6 +139,9 @@ class BrandController extends Controller
         $name = $brand->name;
         if ($brand->logo) {
             $this->deleteImage($brand->logo);
+        }
+        if ($brand->hero_path) {
+            $this->deleteImage($brand->hero_path);
         }
         $brand->delete();
 

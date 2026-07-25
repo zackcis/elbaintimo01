@@ -5,12 +5,12 @@ import {
     syncHarimiWayfinderDefaults,
 } from '@/components/locale-wayfinder-sync';
 import { useUi } from '@/hooks/use-ui';
-import { dashboard, login, register } from '@/routes';
+import { dashboard, login } from '@/routes';
 import { type SharedData } from '@/types';
 import { Head, Link, usePage } from '@inertiajs/react';
 
 export default function Welcome({
-    canRegister = true,
+    canRegister: _canRegister = false,
 }: {
     canRegister?: boolean;
 }) {
@@ -50,14 +50,6 @@ export default function Welcome({
                                 >
                                     {t('welcome.log_in')}
                                 </Link>
-                                {canRegister && (
-                                    <Link
-                                        href={register()}
-                                        className="inline-block rounded-[10px] border-2 border-burgundy px-5 py-2 text-sm font-medium text-burgundy transition-colors duration-200 hover:bg-burgundy/10"
-                                    >
-                                        {t('welcome.register')}
-                                    </Link>
-                                )}
                             </>
                         )}
                     </nav>
@@ -77,14 +69,6 @@ export default function Welcome({
                                     >
                                         {t('welcome.log_in')}
                                     </Link>
-                                    {canRegister && (
-                                        <Link
-                                            href={register()}
-                                            className="inline-flex items-center justify-center rounded-[10px] border-2 border-burgundy bg-transparent px-4 py-2.5 text-sm font-medium text-burgundy transition-colors duration-200 hover:bg-burgundy/10"
-                                        >
-                                            {t('welcome.register')}
-                                        </Link>
-                                    )}
                                 </div>
                             )}
                             {auth.user && (

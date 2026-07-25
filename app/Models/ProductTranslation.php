@@ -13,8 +13,11 @@ class ProductTranslation extends Model
     protected $fillable = [
         'product_id',
         'locale',
+        'slug',
         'title',
         'description',
+        'care_notes',
+        'fit_notes',
     ];
 
     public function product(): BelongsTo

@@ -20,13 +20,28 @@ import { index as commandsIndex } from '@/routes/commands';
 import { index as products } from '@/routes/products';
 import { edit as profileEdit } from '@/routes/profile';
 import { type NavItem } from '@/types';
-import { Link } from '@inertiajs/react';
-import { LayoutGrid, Package, Users, FolderTree, Building2, FileText, Settings } from 'lucide-react';
+import { Link, usePage } from '@inertiajs/react';
+import {
+    LayoutGrid,
+    Package,
+    Users,
+    FolderTree,
+    Building2,
+    FileText,
+    Settings,
+    Sparkles,
+    AlertTriangle,
+    ImageIcon,
+} from 'lucide-react';
 import { useMemo } from 'react';
 import AppLogo from './app-logo';
 
 export function AppSidebar() {
-    const { t } = useUi();
+    const { t, locale } = useUi();
+    const page = usePage();
+    const currentLocale =
+        (page.props as { harimi?: { currentLocale?: string } }).harimi?.currentLocale ??
+        locale;
 
     const mainNavItems: NavItem[] = useMemo(
         () => [
@@ -51,6 +66,21 @@ export function AppSidebar() {
                 icon: Building2,
             },
             {
+                title: t('nav.merchandising'),
+                href: `/${currentLocale}/merchandising`,
+                icon: Sparkles,
+            },
+            {
+                title: t('nav.site_media'),
+                href: `/${currentLocale}/site-media`,
+                icon: ImageIcon,
+            },
+            {
+                title: t('nav.inventory'),
+                href: `/${currentLocale}/inventory/low-stock`,
+                icon: AlertTriangle,
+            },
+            {
                 title: t('nav.commands'),
                 href: commandsIndex(),
                 icon: FileText,
@@ -61,7 +91,7 @@ export function AppSidebar() {
                 icon: Users,
             },
         ],
-        [t],
+        [t, currentLocale],
     );
 
     const footerNavItems: NavItem[] = useMemo(

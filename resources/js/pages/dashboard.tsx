@@ -5,7 +5,7 @@ import { useUi } from '@/hooks/use-ui';
 import AppLayout from '@/layouts/app-layout';
 import { dashboard } from '@/routes';
 import { type BreadcrumbItem } from '@/types';
-import { Head } from '@inertiajs/react';
+import { Head, Link } from '@inertiajs/react';
 import {
     Package,
     Users,
@@ -54,6 +54,7 @@ type StatCard = {
     color: string;
     bgColor: string;
     showLowStockBadge?: boolean;
+    href?: string;
 };
 
 export default function Dashboard({ stats, recentActivities = [] }: DashboardProps) {
@@ -62,6 +63,8 @@ export default function Dashboard({ stats, recentActivities = [] }: DashboardPro
     const [isLoading, setIsLoading] = useState(true);
 
     const dateLocale = locale === 'it' ? 'it-IT' : 'en-US';
+    const lowStockHref = `/${locale}/inventory/low-stock`;
+    const outOfStockHref = `/${locale}/inventory/low-stock?filter=out`;
 
     const breadcrumbs: BreadcrumbItem[] = useMemo(
         () => [
@@ -113,6 +116,7 @@ export default function Dashboard({ stats, recentActivities = [] }: DashboardPro
                 description: t('dashboard.critical_stock_desc'),
                 color: 'text-red-600',
                 bgColor: 'bg-red-100',
+                href: outOfStockHref,
             },
             {
                 id: 'total_products',
@@ -141,9 +145,10 @@ export default function Dashboard({ stats, recentActivities = [] }: DashboardPro
                 color: 'text-amber-600',
                 bgColor: 'bg-amber-100',
                 showLowStockBadge: true,
+                href: lowStockHref,
             },
         ],
-        [t, stats, dateLocale],
+        [t, stats, dateLocale, lowStockHref, outOfStockHref],
     );
 
     useEffect(() => {
@@ -178,14 +183,13 @@ export default function Dashboard({ stats, recentActivities = [] }: DashboardPro
                     <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                         {statCards.map((stat, index) => {
                             const Icon = stat.icon;
-                            return (
+                            const card = (
                                 <Card
-                                    key={stat.id}
                                     className={`border-border/80 transition-all duration-200 hover:shadow-[0_2px_8px_rgba(0,0,0,0.06)] ${
                                         isLoaded
                                             ? 'translate-y-0 opacity-100'
                                             : 'translate-y-4 opacity-0'
-                                    }`}
+                                    } ${stat.href ? 'cursor-pointer hover:border-burgundy/40' : ''}`}
                                     style={{
                                         transitionDelay: `${index * 50}ms`,
                                     }}
@@ -213,6 +217,14 @@ export default function Dashboard({ stats, recentActivities = [] }: DashboardPro
                                         <p className="mt-2 text-xs text-muted-foreground">{stat.description}</p>
                                     </CardContent>
                                 </Card>
+                            );
+
+                            return stat.href ? (
+                                <Link key={stat.id} href={stat.href} className="block">
+                                    {card}
+                                </Link>
+                            ) : (
+                                <div key={stat.id}>{card}</div>
                             );
                         })}
                     </div>

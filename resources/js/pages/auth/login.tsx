@@ -8,7 +8,6 @@ import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
 import { useUi } from '@/hooks/use-ui';
 import AuthLayout from '@/layouts/auth-layout';
-import { register } from '@/routes';
 import { store } from '@/routes/login';
 import { request } from '@/routes/password';
 import { Form, Head } from '@inertiajs/react';
@@ -16,13 +15,12 @@ import { Form, Head } from '@inertiajs/react';
 interface LoginProps {
     status?: string;
     canResetPassword: boolean;
-    canRegister: boolean;
+    canRegister?: boolean;
 }
 
 export default function Login({
     status,
     canResetPassword,
-    canRegister,
 }: LoginProps) {
     const { t } = useUi();
 
@@ -94,15 +92,6 @@ export default function Login({
                                 {t('auth.login.submit')}
                             </Button>
                         </div>
-
-                        {canRegister && (
-                            <div className="text-center text-sm text-muted-foreground">
-                                {t('auth.login.no_account')}{' '}
-                                <TextLink href={register()} tabIndex={5}>
-                                    {t('auth.login.sign_up')}
-                                </TextLink>
-                            </div>
-                        )}
                     </>
                 )}
             </Form>

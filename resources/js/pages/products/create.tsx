@@ -41,6 +41,7 @@ interface Variant {
     color: string;
     color_hex: string;
     price: string;
+    compare_at_price: string;
     stock: string;
 }
 
@@ -73,7 +74,7 @@ export default function CreateProduct({ categories, brands }: ProductFormProps) 
     const fieldId = (key: string) => `field-${key.replace(/\./g, '-')}`;
 
     const [variants, setVariants] = useState<Variant[]>([
-        { size: '', color: '', color_hex: '', price: '', stock: '' },
+        { size: '', color: '', color_hex: '', price: '', compare_at_price: '', stock: '' },
     ]);
     const [images, setImages] = useState<Image[]>([]);
     const [brandMode, setBrandMode] = useState<BrandMode>('existing');
@@ -89,7 +90,7 @@ export default function CreateProduct({ categories, brands }: ProductFormProps) 
     );
 
     const addVariant = () => {
-        setVariants([...variants, { size: '', color: '', color_hex: '', price: '', stock: '' }]);
+        setVariants([...variants, { size: '', color: '', color_hex: '', price: '', compare_at_price: '', stock: '' }]);
     };
 
     const removeVariant = (index: number) => {
@@ -147,6 +148,9 @@ export default function CreateProduct({ categories, brands }: ProductFormProps) 
             uploadData.append(`variants[${index}][color]`, v.color || '');
             uploadData.append(`variants[${index}][color_hex]`, v.color_hex || '');
             uploadData.append(`variants[${index}][price]`, v.price);
+            if (v.compare_at_price.trim() !== '') {
+                uploadData.append(`variants[${index}][compare_at_price]`, v.compare_at_price);
+            }
             uploadData.append(`variants[${index}][stock]`, v.stock);
         });
 
@@ -429,7 +433,7 @@ export default function CreateProduct({ categories, brands }: ProductFormProps) 
                                             </Button>
                                         )}
                                     </div>
-                                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                                    <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
                                         <div className="grid gap-2">
                                             <Label className="text-xs font-sans uppercase tracking-wide text-gray-600">
                                                 Size
@@ -500,7 +504,7 @@ export default function CreateProduct({ categories, brands }: ProductFormProps) 
                                         </div>
                                         <div className="grid gap-2" id={fieldId(`variants.${index}.price`)}>
                                             <Label className="text-xs font-sans uppercase tracking-wide text-gray-600">
-                                                Price *
+                                                Price (selling) *
                                             </Label>
                                             <Input
                                                 type="number"
@@ -524,6 +528,40 @@ export default function CreateProduct({ categories, brands }: ProductFormProps) 
                                                 aria-invalid={Boolean(mergedErrors[`variants.${index}.price`])}
                                             />
                                             <InputError message={mergedErrors[`variants.${index}.price`]} />
+                                        </div>
+                                        <div className="grid gap-2" id={fieldId(`variants.${index}.compare_at_price`)}>
+                                            <Label className="text-xs font-sans uppercase tracking-wide text-gray-600">
+                                                Was price (optional)
+                                            </Label>
+                                            <Input
+                                                type="number"
+                                                step="0.01"
+                                                min="0"
+                                                value={variant.compare_at_price}
+                                                onChange={(e) =>
+                                                    updateVariant(
+                                                        index,
+                                                        'compare_at_price',
+                                                        e.target.value,
+                                                    )
+                                                }
+                                                placeholder="e.g. 49.90"
+                                                className={
+                                                    mergedErrors[`variants.${index}.compare_at_price`]
+                                                        ? 'border-destructive focus-visible:ring-destructive/30'
+                                                        : 'border-gray-300'
+                                                }
+                                                aria-invalid={Boolean(
+                                                    mergedErrors[`variants.${index}.compare_at_price`],
+                                                )}
+                                            />
+                                            <p className="text-[11px] leading-snug text-muted-foreground font-sans">
+                                                Leave empty for full price. To discount: set selling price lower and
+                                                was price higher (e.g. sell 29.90, was 49.90).
+                                            </p>
+                                            <InputError
+                                                message={mergedErrors[`variants.${index}.compare_at_price`]}
+                                            />
                                         </div>
                                         <div className="grid gap-2" id={fieldId(`variants.${index}.stock`)}>
                                             <Label className="text-xs font-sans uppercase tracking-wide text-gray-600">

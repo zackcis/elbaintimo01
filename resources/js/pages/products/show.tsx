@@ -52,6 +52,7 @@ interface ProductVariant {
     color: string | null;
     color_hex: string | null;
     price: string;
+    compare_at_price?: string | null;
     stock: number;
 }
 
@@ -741,6 +742,16 @@ export default function ProductsShow({ product, relatedProducts }: ProductsShowP
                                                         <span className="font-serif font-semibold text-burgundy">
                                                             {parseFloat(variant.price).toFixed(2)} €
                                                         </span>
+                                                        {variant.compare_at_price != null &&
+                                                        Number(variant.compare_at_price) >
+                                                            Number(variant.price) ? (
+                                                            <span className="text-sm text-gray-500 line-through font-sans">
+                                                                {parseFloat(
+                                                                    String(variant.compare_at_price),
+                                                                ).toFixed(2)}{' '}
+                                                                €
+                                                            </span>
+                                                        ) : null}
                                                         <Badge className={`${variantStockInfo.bgColor} ${variantStockInfo.textColor} border-0 font-sans text-xs`}>
                                                             {variant.stock} {ts('products.show.units')}
                                                         </Badge>

@@ -8,7 +8,7 @@ import { dashboard } from '@/routes';
 import { create as commandsCreate, destroy as commandDestroy, index as commandsIndex, invoice as commandInvoice, show as commandShow } from '@/routes/commands';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, router } from '@inertiajs/react';
-import { FileText, Plus, Search, Eye, Edit, Trash2, Download } from 'lucide-react';
+import { FileText, Plus, Search, Eye, Trash2, Download } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { ProductListSkeleton } from '@/components/skeleton-loaders';
 import { useToast } from '@/hooks/use-toast';
@@ -32,6 +32,8 @@ interface Command {
     client_email: string;
     fulfillment_type?: 'pickup' | 'ship';
     status: 'pending' | 'confirmed' | 'shipped' | 'cancelled';
+    payment_status?: string | null;
+    source?: string | null;
     total_amount: string;
     notes: string | null;
     created_at: string;
@@ -47,15 +49,22 @@ interface CommandsData {
     links: Array<{
         url: string | null;
         label: string;
-        active: boolean;
     }>;
+}
+
+interface CommandsFilters {
+    q: string;
+    payment_status: string;
+    status: string;
+    source: string;
 }
 
 interface CommandsProps {
     commands: CommandsData;
+    filters: CommandsFilters;
 }
 
-export default function CommandsIndex({ commands }: CommandsProps) {
+export default function CommandsIndex({ commands, filters }: CommandsProps) {
     const { t, locale } = useUi();
     const dateLocale = locale === 'it' ? 'it-IT' : 'en-US';
     const toast = useToast();
@@ -65,7 +74,10 @@ export default function CommandsIndex({ commands }: CommandsProps) {
     ];
 
     const [isLoading, setIsLoading] = useState(true);
-    const [searchTerm, setSearchTerm] = useState('');
+    const [searchTerm, setSearchTerm] = useState(filters?.q ?? '');
+    const [paymentStatus, setPaymentStatus] = useState(filters?.payment_status ?? '');
+    const [statusFilter, setStatusFilter] = useState(filters?.status ?? '');
+    const [sourceFilter, setSourceFilter] = useState(filters?.source ?? '');
     const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; commandId: number | null }>({
         open: false,
         commandId: null,
@@ -76,6 +88,13 @@ export default function CommandsIndex({ commands }: CommandsProps) {
         return () => clearTimeout(timer);
     }, []);
 
+    useEffect(() => {
+        setSearchTerm(filters?.q ?? '');
+        setPaymentStatus(filters?.payment_status ?? '');
+        setStatusFilter(filters?.status ?? '');
+        setSourceFilter(filters?.source ?? '');
+    }, [filters]);
+
     const getStatusColor = (status: string) => {
         switch (status) {
             case 'pending':
@@ -84,6 +103,22 @@ export default function CommandsIndex({ commands }: CommandsProps) {
                 return 'bg-blue-100 text-blue-700 border-blue-200';
             case 'shipped':
                 return 'bg-green-100 text-green-700 border-green-200';
+            case 'cancelled':
+                return 'bg-red-100 text-red-700 border-red-200';
+            default:
+                return 'bg-gray-100 text-gray-700 border-border/80';
+        }
+    };
+
+    const getPaymentColor = (payment?: string | null) => {
+        switch (payment) {
+            case 'paid':
+                return 'bg-green-100 text-green-700 border-green-200';
+            case 'refunded':
+                return 'bg-purple-100 text-purple-700 border-purple-200';
+            case 'pending_payment':
+                return 'bg-amber-100 text-amber-800 border-amber-200';
+            case 'failed':
             case 'cancelled':
                 return 'bg-red-100 text-red-700 border-red-200';
             default:
@@ -106,14 +141,51 @@ export default function CommandsIndex({ commands }: CommandsProps) {
         }
     };
 
-    const getFulfillmentLabel = (ft?: string) =>
-        ft === 'ship' ? t('invoice.ship') : t('invoice.pickup');
+    const getPaymentLabel = (payment?: string | null) => {
+        switch (payment) {
+            case 'paid':
+                return t('commands.payment.paid');
+            case 'pending_payment':
+                return t('commands.payment.pending_payment');
+            case 'failed':
+                return t('commands.payment.failed');
+            case 'cancelled':
+                return t('commands.payment.cancelled');
+            case 'refunded':
+                return t('commands.payment.refunded');
+            case 'not_applicable':
+                return t('commands.payment.not_applicable');
+            default:
+                return payment || t('commands.payment.not_applicable');
+        }
+    };
 
-    const filteredCommands = commands.data.filter((command) =>
-        command.reference.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        command.client_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        command.client_email.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const getSourceLabel = (source?: string | null) => {
+        if (source === 'storefront') {
+            return t('commands.source.storefront');
+        }
+        return t('commands.source.admin');
+    };
+
+    const applyFilters = (next: Partial<CommandsFilters>) => {
+        const params: Record<string, string> = {};
+        const merged = {
+            q: searchTerm,
+            payment_status: paymentStatus,
+            status: statusFilter,
+            source: sourceFilter,
+            ...next,
+        };
+        if (merged.q) params.q = merged.q;
+        if (merged.payment_status) params.payment_status = merged.payment_status;
+        if (merged.status) params.status = merged.status;
+        if (merged.source) params.source = merged.source;
+
+        router.get(commandsIndex().url, params, {
+            preserveState: true,
+            replace: true,
+        });
+    };
 
     const handleDelete = (commandId: number) => {
         setDeleteDialog({ open: true, commandId });
@@ -143,7 +215,6 @@ export default function CommandsIndex({ commands }: CommandsProps) {
                 variant="destructive"
             />
             <div className="flex h-full flex-1 flex-col gap-6 p-8 bg-gray-50">
-                {/* Header */}
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div>
                         <h1 className="text-3xl font-semibold text-gray-900 mb-1">
@@ -161,22 +232,79 @@ export default function CommandsIndex({ commands }: CommandsProps) {
                     </Link>
                 </div>
 
-                {/* Search */}
-                <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                    <input
-                        type="text"
-                        placeholder={t('commands.search_placeholder')}
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2 border border-border/80 rounded-lg focus:ring-2 focus:ring-burgundy/20 focus:border-burgundy bg-white text-sm"
-                    />
+                <div className="grid gap-3 md:grid-cols-4">
+                    <div className="relative md:col-span-1">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                        <input
+                            type="text"
+                            placeholder={t('commands.search_placeholder')}
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    applyFilters({ q: searchTerm });
+                                }
+                            }}
+                            className="w-full pl-10 pr-4 py-2 border border-border/80 rounded-lg focus:ring-2 focus:ring-burgundy/20 focus:border-burgundy bg-white text-sm"
+                        />
+                    </div>
+                    <select
+                        value={paymentStatus}
+                        onChange={(e) => {
+                            setPaymentStatus(e.target.value);
+                            applyFilters({ payment_status: e.target.value });
+                        }}
+                        className="h-10 rounded-lg border border-border/80 bg-white px-3 text-sm"
+                    >
+                        <option value="">{t('commands.filters.all_payments')}</option>
+                        <option value="pending_payment">{t('commands.payment.pending_payment')}</option>
+                        <option value="paid">{t('commands.payment.paid')}</option>
+                        <option value="refunded">{t('commands.payment.refunded')}</option>
+                        <option value="failed">{t('commands.payment.failed')}</option>
+                        <option value="cancelled">{t('commands.payment.cancelled')}</option>
+                        <option value="not_applicable">{t('commands.payment.not_applicable')}</option>
+                    </select>
+                    <select
+                        value={statusFilter}
+                        onChange={(e) => {
+                            setStatusFilter(e.target.value);
+                            applyFilters({ status: e.target.value });
+                        }}
+                        className="h-10 rounded-lg border border-border/80 bg-white px-3 text-sm"
+                    >
+                        <option value="">{t('commands.filters.all_statuses')}</option>
+                        <option value="pending">{t('commands.status.pending')}</option>
+                        <option value="confirmed">{t('commands.status.confirmed')}</option>
+                        <option value="shipped">{t('commands.status.shipped')}</option>
+                        <option value="cancelled">{t('commands.status.cancelled')}</option>
+                    </select>
+                    <select
+                        value={sourceFilter}
+                        onChange={(e) => {
+                            setSourceFilter(e.target.value);
+                            applyFilters({ source: e.target.value });
+                        }}
+                        className="h-10 rounded-lg border border-border/80 bg-white px-3 text-sm"
+                    >
+                        <option value="">{t('commands.filters.all_sources')}</option>
+                        <option value="storefront">{t('commands.source.storefront')}</option>
+                        <option value="admin">{t('commands.source.admin')}</option>
+                    </select>
+                </div>
+                <div>
+                    <Button
+                        type="button"
+                        variant="outline"
+                        className="border-gray-300"
+                        onClick={() => applyFilters({ q: searchTerm })}
+                    >
+                        {t('commands.filters.apply')}
+                    </Button>
                 </div>
 
-                {/* Commands Table */}
                 {isLoading ? (
                     <ProductListSkeleton count={5} />
-                ) : filteredCommands.length === 0 ? (
+                ) : commands.data.length === 0 ? (
                     <Card className="border-border/80">
                         <CardContent>
                             <EmptyState
@@ -201,6 +329,12 @@ export default function CommandsIndex({ commands }: CommandsProps) {
                                             {t('invoice.client')}
                                         </th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                                            {t('commands.filters.source')}
+                                        </th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                                            {t('commands.filters.payment')}
+                                        </th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
                                             {t('invoice.status')}
                                         </th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
@@ -215,7 +349,7 @@ export default function CommandsIndex({ commands }: CommandsProps) {
                                     </tr>
                                 </thead>
                                 <tbody className="bg-white divide-y divide-gray-200">
-                                    {filteredCommands.map((command) => (
+                                    {commands.data.map((command) => (
                                         <tr
                                             key={command.id}
                                             className="hover:bg-gray-50 transition-colors"
@@ -235,8 +369,15 @@ export default function CommandsIndex({ commands }: CommandsProps) {
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <span className="text-xs font-medium text-gray-700">
-                                                    {getFulfillmentLabel(command.fulfillment_type)}
+                                                    {getSourceLabel(command.source)}
                                                 </span>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <Badge
+                                                    className={`${getPaymentColor(command.payment_status)} border font-medium text-xs`}
+                                                >
+                                                    {getPaymentLabel(command.payment_status)}
+                                                </Badge>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <Badge
@@ -295,7 +436,6 @@ export default function CommandsIndex({ commands }: CommandsProps) {
                             </table>
                         </div>
 
-                        {/* Pagination */}
                         {commands.last_page > 1 && (
                             <div className="px-6 py-4 border-t border-border/80 flex items-center justify-between">
                                 <div className="text-sm text-gray-600">
@@ -334,4 +474,3 @@ export default function CommandsIndex({ commands }: CommandsProps) {
         </AppLayout>
     );
 }
-

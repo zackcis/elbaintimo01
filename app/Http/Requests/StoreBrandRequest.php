@@ -20,6 +20,8 @@ class StoreBrandRequest extends FormRequest
             'name.it' => ['required', 'string', 'max:255'],
             'name.en' => ['required', 'string', 'max:255'],
             'logo' => ['nullable', 'image', 'mimes:jpeg,png,jpg,gif,webp', 'max:5120'],
+            'hero' => ['nullable', 'image', 'mimes:jpeg,png,jpg,gif,webp', 'max:5120'],
+            'clear_hero' => ['nullable', 'boolean'],
         ];
     }
 }

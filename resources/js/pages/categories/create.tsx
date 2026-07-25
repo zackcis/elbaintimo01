@@ -27,6 +27,7 @@ export default function CreateCategory({ parentOptions }: CategoryFormProps) {
     const page = usePage();
     const errors = (page.props as any).errors || {};
     const [imageFile, setImageFile] = useState<File | null>(null);
+    const [heroFile, setHeroFile] = useState<File | null>(null);
 
     const breadcrumbs: BreadcrumbItem[] = [
         { title: t('breadcrumb.dashboard'), href: dashboard().url },
@@ -46,6 +47,9 @@ export default function CreateCategory({ parentOptions }: CategoryFormProps) {
         }
         if (imageFile) {
             uploadData.append('images[0][file]', imageFile);
+        }
+        if (heroFile) {
+            uploadData.append('hero', heroFile);
         }
 
         router.post(categoriesStore.url(), uploadData, {
@@ -124,7 +128,6 @@ export default function CreateCategory({ parentOptions }: CategoryFormProps) {
                         </CardContent>
                     </Card>
 
-                    {/* Images */}
                     <Card className="border-gray-200 shadow-sm rounded-lg">
                         <CardHeader className="bg-white">
                             <CardTitle className="text-xl font-serif font-bold text-burgundy">
@@ -136,6 +139,21 @@ export default function CreateCategory({ parentOptions }: CategoryFormProps) {
                                 value={imageFile}
                                 onChange={setImageFile}
                                 label={t('categories.image_optional')}
+                            />
+                        </CardContent>
+                    </Card>
+
+                    <Card className="border-gray-200 shadow-sm rounded-lg">
+                        <CardHeader className="bg-white">
+                            <CardTitle className="text-xl font-serif font-bold text-burgundy">
+                                {t('categories.hero')}
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="bg-white pt-4">
+                            <SingleImageUpload
+                                value={heroFile}
+                                onChange={setHeroFile}
+                                label={t('categories.hero_optional')}
                             />
                         </CardContent>
                     </Card>

@@ -11,6 +11,8 @@ abstract class TestCase extends BaseTestCase
     {
         parent::setUp();
 
+        $this->withoutVite();
+
         URL::defaults([
             'locale' => config('harimi.public_default_locale', 'it'),
         ]);

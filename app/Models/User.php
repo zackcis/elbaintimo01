@@ -52,4 +52,14 @@ class User extends Authenticatable
             'two_factor_confirmed_at' => 'datetime',
         ];
     }
+
+    public function isStaff(): bool
+    {
+        return in_array($this->role ?? 'staff', ['staff', 'admin'], true);
+    }
+
+    public function isClient(): bool
+    {
+        return ($this->role ?? null) === 'client';
+    }
 }

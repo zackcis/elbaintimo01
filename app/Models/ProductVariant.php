@@ -21,6 +21,7 @@ class ProductVariant extends Model
         'color',
         'color_hex',
         'price',
+        'compare_at_price',
         'stock',
     ];
 
@@ -33,6 +34,7 @@ class ProductVariant extends Model
     {
         return [
             'price' => 'decimal:2',
+            'compare_at_price' => 'decimal:2',
         ];
     }
 

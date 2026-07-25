@@ -107,9 +107,11 @@ class ProductController extends Controller
                     'logo' => $logoPath,
                 ]);
                 foreach (config('harimi.locales', ['it', 'en']) as $loc) {
+                    $name = (string) $request->input("new_brand_name.$loc");
                     $brand->translations()->create([
                         'locale' => $loc,
-                        'name' => (string) $request->input("new_brand_name.$loc"),
+                        'slug' => \App\Support\UniqueSlug::make($name, 'brand_translations', $loc),
+                        'name' => $name,
                     ]);
                 }
                 $brandId = $brand->id;
@@ -124,13 +126,19 @@ class ProductController extends Controller
             'category_id' => (int) $request->validated('category_id'),
             'brand_id' => $brandId ? (int) $brandId : null,
             'tissu' => $tissu,
+            'is_published' => false,
+            'published_at' => null,
         ]);
 
         foreach (config('harimi.locales', ['it', 'en']) as $loc) {
+            $title = (string) $request->input("title.$loc");
             $product->translations()->create([
                 'locale' => $loc,
-                'title' => (string) $request->input("title.$loc"),
+                'slug' => \App\Support\UniqueSlug::make($title, 'product_translations', $loc),
+                'title' => $title,
                 'description' => $request->input("description.$loc"),
+                'care_notes' => $request->input("care_notes.$loc"),
+                'fit_notes' => $request->input("fit_notes.$loc"),
             ]);
         }
 
@@ -141,6 +149,7 @@ class ProductController extends Controller
                 'color' => $variantData['color'] ?? null,
                 'color_hex' => $this->normalizeHexColor($variantData['color_hex'] ?? null),
                 'price' => $variantData['price'],
+                'compare_at_price' => $variantData['compare_at_price'] ?? null,
                 'stock' => $variantData['stock'],
             ]);
         }
@@ -208,14 +217,29 @@ class ProductController extends Controller
             'translations',
             'variants',
             'images',
+            'relatedProducts.translations',
         ]);
         $categories = Category::query()->with('translations')->get()->sortBy('name')->values();
         $brands = Brand::query()->with('translations')->get()->sortBy('name')->values();
+        $relatedCandidates = Product::query()
+            ->with(['translations', 'images'])
+            ->where('id', '!=', $product->id)
+            ->adminOrderByTitle()
+            ->limit(200)
+            ->get()
+            ->map(fn (Product $p) => [
+                'id' => $p->id,
+                'title' => $p->title,
+                'is_published' => (bool) $p->is_published,
+            ])
+            ->values();
 
         return Inertia::render('products/edit', [
             'product' => $product,
             'categories' => $categories,
             'brands' => $brands,
+            'relatedCandidates' => $relatedCandidates,
+            'relatedProductIds' => $product->relatedProducts->pluck('id')->values(),
         ]);
     }
 
@@ -235,9 +259,11 @@ class ProductController extends Controller
                     'logo' => $logoPath,
                 ]);
                 foreach (config('harimi.locales', ['it', 'en']) as $loc) {
+                    $name = (string) $request->input("new_brand_name.$loc");
                     $brand->translations()->create([
                         'locale' => $loc,
-                        'name' => (string) $request->input("new_brand_name.$loc"),
+                        'slug' => \App\Support\UniqueSlug::make($name, 'brand_translations', $loc),
+                        'name' => $name,
                     ]);
                 }
                 $brandId = $brand->id;
@@ -248,21 +274,58 @@ class ProductController extends Controller
         $tissuRaw = $request->input('tissu');
         $tissu = is_string($tissuRaw) && trim($tissuRaw) !== '' ? trim($tissuRaw) : null;
 
+        $isPublished = $request->boolean('is_published');
+        $wasPublished = (bool) $product->is_published;
+
         $product->update([
             'category_id' => (int) $request->validated('category_id'),
             'brand_id' => $brandId ? (int) $brandId : null,
             'tissu' => $tissu,
+            'is_published' => $isPublished,
+            'published_at' => $isPublished
+                ? ($product->published_at ?? now())
+                : null,
         ]);
 
+        if ($wasPublished && ! $isPublished) {
+            \App\Models\MerchandisingItem::query()
+                ->where('product_id', $product->id)
+                ->delete();
+            \App\Models\MerchandisingPin::query()
+                ->where('product_id', $product->id)
+                ->delete();
+        }
+
         foreach (config('harimi.locales', ['it', 'en']) as $loc) {
+            $title = (string) $request->input("title.$loc");
+            $existing = $product->translations()->where('locale', $loc)->first();
             $product->translations()->updateOrCreate(
                 ['locale' => $loc],
                 [
-                    'title' => (string) $request->input("title.$loc"),
+                    'slug' => \App\Support\UniqueSlug::make(
+                        $title,
+                        'product_translations',
+                        $loc,
+                        $existing?->id,
+                    ),
+                    'title' => $title,
                     'description' => $request->input("description.$loc"),
+                    'care_notes' => $request->input("care_notes.$loc"),
+                    'fit_notes' => $request->input("fit_notes.$loc"),
                 ],
             );
         }
+
+        $relatedIds = collect($request->input('related_product_ids', []))
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn ($id) => $id > 0 && $id !== $product->id)
+            ->unique()
+            ->values();
+        $sync = [];
+        foreach ($relatedIds as $position => $relatedId) {
+            $sync[$relatedId] = ['position' => $position];
+        }
+        $product->relatedProducts()->sync($sync);
 
         $product->variants()->delete();
 
@@ -273,6 +336,7 @@ class ProductController extends Controller
                 'color' => $variantData['color'] ?? null,
                 'color_hex' => $this->normalizeHexColor($variantData['color_hex'] ?? null),
                 'price' => $variantData['price'],
+                'compare_at_price' => $variantData['compare_at_price'] ?? null,
                 'stock' => $variantData['stock'],
             ]);
         }

@@ -18,6 +18,7 @@ export default function CreateBrand() {
     const page = usePage();
     const errors = (page.props as { errors?: Record<string, string> }).errors || {};
     const [logoFile, setLogoFile] = useState<File | null>(null);
+    const [heroFile, setHeroFile] = useState<File | null>(null);
 
     const breadcrumbs: BreadcrumbItem[] = [
         { title: t('breadcrumb.dashboard'), href: dashboard().url },
@@ -33,6 +34,9 @@ export default function CreateBrand() {
         uploadData.append('name[en]', (formData.get('name[en]') as string) || '');
         if (logoFile) {
             uploadData.append('logo', logoFile);
+        }
+        if (heroFile) {
+            uploadData.append('hero', heroFile);
         }
 
         router.post(brandsStore.url(), uploadData, {
@@ -97,6 +101,15 @@ export default function CreateBrand() {
                                     label={t('brands.logo_optional')}
                                 />
                                 <InputError message={errors.logo} />
+                            </div>
+
+                            <div className="grid gap-2">
+                                <SingleImageUpload
+                                    value={heroFile}
+                                    onChange={setHeroFile}
+                                    label={t('brands.hero_optional')}
+                                />
+                                <InputError message={errors.hero} />
                             </div>
                         </CardContent>
                     </Card>

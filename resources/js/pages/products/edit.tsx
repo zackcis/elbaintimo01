@@ -36,6 +36,7 @@ interface ProductVariant {
     color: string | null;
     color_hex: string | null;
     price: string;
+    compare_at_price: string | null;
     stock: number;
 }
 
@@ -50,6 +51,8 @@ interface ProductTranslationRow {
     locale: string;
     title: string;
     description: string | null;
+    care_notes: string | null;
+    fit_notes: string | null;
 }
 
 interface Product {
@@ -59,15 +62,25 @@ interface Product {
     category_id: number;
     brand_id: number | null;
     tissu: string | null;
+    is_published: boolean;
+    published_at: string | null;
     translations: ProductTranslationRow[];
     variants: ProductVariant[];
     images: ProductImage[];
+}
+
+interface RelatedCandidate {
+    id: number;
+    title: string;
+    is_published: boolean;
 }
 
 interface ProductFormProps {
     product: Product;
     categories: Category[];
     brands: Brand[];
+    relatedCandidates?: RelatedCandidate[];
+    relatedProductIds?: number[];
 }
 
 interface Variant {
@@ -75,6 +88,7 @@ interface Variant {
     color: string;
     color_hex: string;
     price: string;
+    compare_at_price: string;
     stock: string;
 }
 
@@ -87,7 +101,13 @@ interface Image {
     position: number;
 }
 
-export default function EditProduct({ product, categories, brands }: ProductFormProps) {
+export default function EditProduct({
+    product,
+    categories,
+    brands,
+    relatedCandidates = [],
+    relatedProductIds = [],
+}: ProductFormProps) {
     const page = usePage();
     const serverErrors = (page.props as { errors?: Record<string, string> }).errors || {};
     const [clientErrors, setClientErrors] = useState<Record<string, string>>({});
@@ -119,9 +139,13 @@ export default function EditProduct({ product, categories, brands }: ProductForm
                   color: v.color || '',
                   color_hex: v.color_hex || '',
                   price: v.price,
+                  compare_at_price:
+                      v.compare_at_price != null && v.compare_at_price !== ''
+                          ? String(v.compare_at_price)
+                          : '',
                   stock: v.stock.toString(),
               }))
-            : [{ size: '', color: '', color_hex: '', price: '', stock: '' }],
+            : [{ size: '', color: '', color_hex: '', price: '', compare_at_price: '', stock: '' }],
     );
     const [images, setImages] = useState<Image[]>(
         product.images.length > 0
@@ -136,11 +160,22 @@ export default function EditProduct({ product, categories, brands }: ProductForm
 
     const [brandMode, setBrandMode] = useState<BrandMode>('existing');
     const [newBrandLogo, setNewBrandLogo] = useState<File | null>(null);
+    const [isPublished, setIsPublished] = useState<boolean>(!!product.is_published);
+    const [relatedIds, setRelatedIds] = useState<number[]>(relatedProductIds);
+    const [relatedPick, setRelatedPick] = useState('');
+
+    const relatedById = useMemo(() => {
+        const map = new Map<number, RelatedCandidate>();
+        for (const c of relatedCandidates) {
+            map.set(c.id, c);
+        }
+        return map;
+    }, [relatedCandidates]);
 
     const tr = (loc: string) => product.translations?.find((t) => t.locale === loc);
 
     const addVariant = () => {
-        setVariants([...variants, { size: '', color: '', color_hex: '', price: '', stock: '' }]);
+        setVariants([...variants, { size: '', color: '', color_hex: '', price: '', compare_at_price: '', stock: '' }]);
     };
 
     const removeVariant = (index: number) => {
@@ -179,8 +214,16 @@ export default function EditProduct({ product, categories, brands }: ProductForm
         uploadData.append('title[en]', (formData.get('title[en]') as string) || '');
         uploadData.append('description[it]', (formData.get('description[it]') as string) || '');
         uploadData.append('description[en]', (formData.get('description[en]') as string) || '');
+        uploadData.append('care_notes[it]', (formData.get('care_notes[it]') as string) || '');
+        uploadData.append('care_notes[en]', (formData.get('care_notes[en]') as string) || '');
+        uploadData.append('fit_notes[it]', (formData.get('fit_notes[it]') as string) || '');
+        uploadData.append('fit_notes[en]', (formData.get('fit_notes[en]') as string) || '');
         uploadData.append('category_id', formData.get('category_id') as string);
         uploadData.append('tissu', ((formData.get('tissu') as string) ?? '').trim());
+        uploadData.append('is_published', isPublished ? '1' : '0');
+        relatedIds.forEach((id, index) => {
+            uploadData.append(`related_product_ids[${index}]`, String(id));
+        });
 
         if (brandMode === 'existing') {
             const brandId = formData.get('brand_id');
@@ -201,6 +244,9 @@ export default function EditProduct({ product, categories, brands }: ProductForm
             uploadData.append(`variants[${index}][color]`, v.color || '');
             uploadData.append(`variants[${index}][color_hex]`, v.color_hex || '');
             uploadData.append(`variants[${index}][price]`, v.price);
+            if (v.compare_at_price.trim() !== '') {
+                uploadData.append(`variants[${index}][compare_at_price]`, v.compare_at_price);
+            }
             uploadData.append(`variants[${index}][stock]`, v.stock);
         });
 
@@ -258,6 +304,29 @@ export default function EditProduct({ product, categories, brands }: ProductForm
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4 bg-white pt-4">
+                            <div className="flex items-start justify-between gap-4 rounded-lg border border-border/80 bg-beige/40 px-4 py-3">
+                                <div>
+                                    <p className="font-sans text-sm font-semibold text-foreground">
+                                        Storefront visibility
+                                    </p>
+                                    <p className="mt-0.5 text-xs text-muted-foreground">
+                                        Published products appear on the public API. Unpublished
+                                        products are removed from merchandising shelves.
+                                    </p>
+                                </div>
+                                <label className="flex cursor-pointer items-center gap-2 shrink-0">
+                                    <input
+                                        type="checkbox"
+                                        checked={isPublished}
+                                        onChange={(e) => setIsPublished(e.target.checked)}
+                                        className="size-4 rounded border-gray-300 text-burgundy focus:ring-burgundy"
+                                    />
+                                    <span className="text-sm font-sans font-medium">
+                                        {isPublished ? 'Published' : 'Draft'}
+                                    </span>
+                                </label>
+                            </div>
+
                             <div className="grid gap-4 md:grid-cols-2">
                                 <div className="grid gap-2">
                                     <Label htmlFor="title-it" className="font-sans font-semibold">
@@ -443,6 +512,178 @@ export default function EditProduct({ product, categories, brands }: ProductForm
                                     <InputError message={mergedErrors['description.en']} />
                                 </div>
                             </div>
+
+                            <div className="grid gap-4 md:grid-cols-2">
+                                <div className="grid gap-2">
+                                    <Label htmlFor="care-notes-it" className="font-sans font-semibold">
+                                        Care notes (IT)
+                                    </Label>
+                                    <Textarea
+                                        id="care-notes-it"
+                                        name="care_notes[it]"
+                                        rows={3}
+                                        defaultValue={tr('it')?.care_notes ?? ''}
+                                        className="border-gray-300"
+                                        placeholder="Lavaggio, stiratura…"
+                                    />
+                                    <InputError message={mergedErrors['care_notes.it']} />
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="care-notes-en" className="font-sans font-semibold">
+                                        Care notes (EN)
+                                    </Label>
+                                    <Textarea
+                                        id="care-notes-en"
+                                        name="care_notes[en]"
+                                        rows={3}
+                                        defaultValue={tr('en')?.care_notes ?? ''}
+                                        className="border-gray-300"
+                                        placeholder="Wash, iron…"
+                                    />
+                                    <InputError message={mergedErrors['care_notes.en']} />
+                                </div>
+                            </div>
+
+                            <div className="grid gap-4 md:grid-cols-2">
+                                <div className="grid gap-2">
+                                    <Label htmlFor="fit-notes-it" className="font-sans font-semibold">
+                                        Fit notes (IT)
+                                    </Label>
+                                    <Textarea
+                                        id="fit-notes-it"
+                                        name="fit_notes[it]"
+                                        rows={3}
+                                        defaultValue={tr('it')?.fit_notes ?? ''}
+                                        className="border-gray-300"
+                                        placeholder="Vestibilità, consiglio taglia…"
+                                    />
+                                    <InputError message={mergedErrors['fit_notes.it']} />
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="fit-notes-en" className="font-sans font-semibold">
+                                        Fit notes (EN)
+                                    </Label>
+                                    <Textarea
+                                        id="fit-notes-en"
+                                        name="fit_notes[en]"
+                                        rows={3}
+                                        defaultValue={tr('en')?.fit_notes ?? ''}
+                                        className="border-gray-300"
+                                        placeholder="Fit, size tip…"
+                                    />
+                                    <InputError message={mergedErrors['fit_notes.en']} />
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <Card className="border-border/80 shadow-sm rounded-lg">
+                        <CardHeader className="bg-white">
+                            <CardTitle className="text-xl font-serif font-bold text-burgundy">
+                                Complete the Look
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4 bg-white pt-4">
+                            <p className="text-sm text-muted-foreground font-sans">
+                                Curated related products shown on the storefront PDP.
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                                <select
+                                    className="h-10 min-w-[220px] flex-1 rounded-md border border-gray-300 bg-white px-3 text-sm"
+                                    value={relatedPick}
+                                    onChange={(e) => setRelatedPick(e.target.value)}
+                                >
+                                    <option value="">Select product…</option>
+                                    {relatedCandidates
+                                        .filter((c) => !relatedIds.includes(c.id))
+                                        .map((c) => (
+                                            <option key={c.id} value={c.id}>
+                                                {c.title}
+                                                {!c.is_published ? ' (draft)' : ''}
+                                            </option>
+                                        ))}
+                                </select>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    className="font-sans"
+                                    onClick={() => {
+                                        const id = Number(relatedPick);
+                                        if (!id || relatedIds.includes(id)) return;
+                                        setRelatedIds((prev) => [...prev, id]);
+                                        setRelatedPick('');
+                                    }}
+                                >
+                                    <Plus className="mr-2 h-4 w-4" />
+                                    Add
+                                </Button>
+                            </div>
+                            <ul className="space-y-2">
+                                {relatedIds.map((id, index) => {
+                                    const item = relatedById.get(id);
+                                    return (
+                                        <li
+                                            key={id}
+                                            className="flex items-center justify-between gap-3 rounded-md border border-border/80 px-3 py-2"
+                                        >
+                                            <span className="text-sm font-sans">
+                                                {item?.title ?? `#${id}`}
+                                            </span>
+                                            <div className="flex items-center gap-1">
+                                                <Button
+                                                    type="button"
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    disabled={index === 0}
+                                                    onClick={() =>
+                                                        setRelatedIds((prev) => {
+                                                            const next = [...prev];
+                                                            [next[index - 1], next[index]] = [
+                                                                next[index],
+                                                                next[index - 1],
+                                                            ];
+                                                            return next;
+                                                        })
+                                                    }
+                                                >
+                                                    ↑
+                                                </Button>
+                                                <Button
+                                                    type="button"
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    disabled={index === relatedIds.length - 1}
+                                                    onClick={() =>
+                                                        setRelatedIds((prev) => {
+                                                            const next = [...prev];
+                                                            [next[index], next[index + 1]] = [
+                                                                next[index + 1],
+                                                                next[index],
+                                                            ];
+                                                            return next;
+                                                        })
+                                                    }
+                                                >
+                                                    ↓
+                                                </Button>
+                                                <Button
+                                                    type="button"
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    onClick={() =>
+                                                        setRelatedIds((prev) =>
+                                                            prev.filter((x) => x !== id),
+                                                        )
+                                                    }
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                            </div>
+                                        </li>
+                                    );
+                                })}
+                            </ul>
+                            <InputError message={mergedErrors.related_product_ids} />
                         </CardContent>
                     </Card>
 
@@ -485,7 +726,7 @@ export default function EditProduct({ product, categories, brands }: ProductForm
                                             </Button>
                                         )}
                                     </div>
-                                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                                    <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
                                         <div className="grid gap-2">
                                             <Label className="text-xs font-sans uppercase tracking-wide text-gray-600">
                                                 Size
@@ -556,7 +797,7 @@ export default function EditProduct({ product, categories, brands }: ProductForm
                                         </div>
                                         <div className="grid gap-2" id={fieldId(`variants.${index}.price`)}>
                                             <Label className="text-xs font-sans uppercase tracking-wide text-gray-600">
-                                                Price *
+                                                Price (selling) *
                                             </Label>
                                             <Input
                                                 type="number"
@@ -580,6 +821,40 @@ export default function EditProduct({ product, categories, brands }: ProductForm
                                                 aria-invalid={Boolean(mergedErrors[`variants.${index}.price`])}
                                             />
                                             <InputError message={mergedErrors[`variants.${index}.price`]} />
+                                        </div>
+                                        <div className="grid gap-2" id={fieldId(`variants.${index}.compare_at_price`)}>
+                                            <Label className="text-xs font-sans uppercase tracking-wide text-gray-600">
+                                                Was price (optional)
+                                            </Label>
+                                            <Input
+                                                type="number"
+                                                step="0.01"
+                                                min="0"
+                                                value={variant.compare_at_price}
+                                                onChange={(e) =>
+                                                    updateVariant(
+                                                        index,
+                                                        'compare_at_price',
+                                                        e.target.value,
+                                                    )
+                                                }
+                                                placeholder="e.g. 49.90"
+                                                className={
+                                                    mergedErrors[`variants.${index}.compare_at_price`]
+                                                        ? 'border-destructive focus-visible:ring-destructive/30'
+                                                        : 'border-gray-300'
+                                                }
+                                                aria-invalid={Boolean(
+                                                    mergedErrors[`variants.${index}.compare_at_price`],
+                                                )}
+                                            />
+                                            <p className="text-[11px] leading-snug text-muted-foreground font-sans">
+                                                Leave empty for full price. To discount: selling price lower, was
+                                                price higher.
+                                            </p>
+                                            <InputError
+                                                message={mergedErrors[`variants.${index}.compare_at_price`]}
+                                            />
                                         </div>
                                         <div className="grid gap-2" id={fieldId(`variants.${index}.stock`)}>
                                             <Label className="text-xs font-sans uppercase tracking-wide text-gray-600">

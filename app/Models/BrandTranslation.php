@@ -13,6 +13,7 @@ class BrandTranslation extends Model
     protected $fillable = [
         'brand_id',
         'locale',
+        'slug',
         'name',
     ];
 

@@ -7,289 +7,278 @@ use App\Models\Category;
 use App\Models\Product;
 use App\Models\ProductImage;
 use App\Models\ProductVariant;
+use Database\Seeders\Concerns\ScansMediaFolder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Seeder;
 
 class ProductSeeder extends Seeder
 {
+    use ScansMediaFolder;
+
     /**
-     * Run the database seeds.
+     * @var list<array{string, string}>  [name, hex]
      */
+    private array $colors = [
+        ['Nero', '#141414'],
+        ['Bianco', '#FFFFFF'],
+        ['Avorio', '#F7F3EC'],
+        ['Nude', '#C4A484'],
+        ['Rosa', '#E8B4B8'],
+        ['Bordeaux', '#6B1E2A'],
+        ['Blu', '#2B3A55'],
+        ['Grigio', '#6B6560'],
+        ['Azzurro', '#A9C6D9'],
+        ['Verde Salvia', '#8A9A7B'],
+    ];
+
+    /**
+     * @var list<string>
+     */
+    private array $imagePool = [];
+
+    private Collection $brands;
+
     public function run(): void
     {
-        $womensDresses = $this->categoryByLocalizedName('Dresses');
-        $womensTops = $this->categoryByLocalizedName('Tops');
-        $womensBottoms = $this->categoryByLocalizedName('Bottoms');
-        $mensTops = $this->categoryByLocalizedName('T-Shirts & Shirts');
-        $mensBottoms = $this->categoryByLocalizedName('Pants & Shorts');
-        $bags = $this->categoryByLocalizedName('Bags');
+        $this->imagePool = $this->mediaFiles('products');
 
-        foreach (
-            [
-                'Dresses' => $womensDresses,
-                'Tops' => $womensTops,
-                'Bottoms' => $womensBottoms,
-                'T-Shirts & Shirts' => $mensTops,
-                'Pants & Shorts' => $mensBottoms,
-                'Bags' => $bags,
-            ] as $label => $cat
-        ) {
-            if ($cat === null) {
-                throw new \RuntimeException("Category not found for label: {$label}. Run CategorySeeder first.");
+        $this->brands = Brand::all();
+        if ($this->brands->isEmpty()) {
+            throw new \RuntimeException('Brands must be seeded before products. Run BrandSeeder first.');
+        }
+
+        // slug => [sizes, priceMin, priceMax, tissus[], productNames[]]
+        $catalog = [
+            // --- Women ---
+            'bras' => [
+                ['2B', '3B', '4B', '3C', '4C', '4D'],
+                34.90, 64.90, ['Microfibra', 'Pizzo', 'Seta'],
+                ['Reggiseno Aurora', 'Reggiseno Seta Soft', 'Reggiseno Balconcino', 'Reggiseno Triangolo', 'Reggiseno Push-up Lumière'],
+            ],
+            'knickers' => [
+                ['XS', 'S', 'M', 'L', 'XL'],
+                9.90, 24.90, ['Cotone', 'Microfibra', 'Pizzo'],
+                ['Slip Essential', 'Culotte Vita Alta', 'Brasiliana Pizzo', 'Perizoma Comfort', 'Slip Brasiliano'],
+            ],
+            'lingerie' => [
+                ['XS', 'S', 'M', 'L'],
+                49.90, 119.90, ['Pizzo', 'Raso', 'Seta'],
+                ['Body Pizzo Notte', 'Guêpière Séduction', 'Completo Raso', 'Reggicalze Chic'],
+            ],
+            'knitwear' => [
+                ['XS', 'S', 'M', 'L', 'XL'],
+                39.90, 89.90, ['Lana', 'Cashmere Blend', 'Cotone'],
+                ['Maglia Costina', 'Cardigan Morbido', 'Dolcevita Lana', 'Maglia Girocollo'],
+            ],
+            'nightwear' => [
+                ['XS', 'S', 'M', 'L', 'XL'],
+                29.90, 79.90, ['Raso', 'Cotone', 'Seta'],
+                ['Pigiama Raso', 'Camicia da Notte', 'Vestaglia Seta', 'Completo Notte Cotone'],
+            ],
+
+            // --- Men ---
+            'boxers' => [
+                ['S', 'M', 'L', 'XL', 'XXL'],
+                12.90, 29.90, ['Cotone', 'Jersey', 'Microfibra'],
+                ['Boxer Stretch', 'Boxer Cotone', 'Boxer Sport', 'Trunk Comfort'],
+            ],
+            'briefs' => [
+                ['S', 'M', 'L', 'XL', 'XXL'],
+                9.90, 22.90, ['Cotone', 'Cotone Bio', 'Microfibra'],
+                ['Slip Uomo Classic', 'Slip Sport', 'Slip Cotone Bio'],
+            ],
+            'tops' => [
+                ['S', 'M', 'L', 'XL', 'XXL'],
+                14.90, 34.90, ['Cotone', 'Termico', 'Jersey'],
+                ['Canotta Essential', 'T-shirt Intima', 'Maglia Termica'],
+            ],
+            'easywear' => [
+                ['S', 'M', 'L', 'XL', 'XXL'],
+                29.90, 69.90, ['Felpa', 'Jersey', 'Cotone'],
+                ['Felpa Relax', 'Pantalone Jersey', 'Set Loungewear'],
+            ],
+            'socks' => [
+                ['39-42', '43-46'],
+                6.90, 16.90, ['Cotone', 'Filo di Scozia', 'Sport'],
+                ['Calze Cotone Pack', 'Calze Sportive', 'Calze Eleganti'],
+            ],
+            'swimsuits' => [
+                ['S', 'M', 'L', 'XL'],
+                24.90, 49.90, ['Poliammide', 'Quick Dry'],
+                ['Boxer Mare', 'Slip Mare', 'Costume Sport'],
+            ],
+
+            // --- Kids ---
+            'kids-underwear' => [
+                ['4A', '6A', '8A', '10A', '12A'],
+                8.90, 18.90, ['Cotone', 'Cotone Bio'],
+                ['Slip Bimbo Cotone', 'Slip Bimba Fantasia', 'Boxer Bimbo Pack'],
+            ],
+            'kids-undershirts' => [
+                ['4A', '6A', '8A', '10A', '12A'],
+                7.90, 16.90, ['Cotone', 'Cotone Bio'],
+                ['Canottiera Bimbo', 'Body Neonato', 'Maglia Intima Kids'],
+            ],
+            'kids-pyjamas' => [
+                ['4A', '6A', '8A', '10A', '12A'],
+                16.90, 34.90, ['Jersey', 'Cotone', 'Pile'],
+                ['Pigiama Stelle', 'Pigiama Cotone', 'Pigiama Corto Estate'],
+            ],
+            'kids-socks' => [
+                ['23-26', '27-30', '31-34'],
+                4.90, 12.90, ['Cotone', 'Antiscivolo', 'Sport'],
+                ['Calze Bimbo Pack', 'Calzini Antiscivolo', 'Calze Sportive Kids'],
+            ],
+        ];
+
+        foreach ($catalog as $slug => [$sizes, $priceMin, $priceMax, $tissus, $names]) {
+            $category = $this->categoryBySlug($slug);
+            if ($category === null) {
+                continue;
+            }
+
+            $types = $category->children()->get();
+
+            if ($types->isEmpty()) {
+                foreach ($names as $name) {
+                    $this->createProduct($category, $name, $sizes, $priceMin, $priceMax, $tissus);
+                }
+
+                continue;
+            }
+
+            // Attach products to L3 type categories (round-robin) so type-filtered
+            // PLPs have stock; L2 pages stay complete via descendant expansion.
+            $total = max(count($names), $types->count() * 2);
+            for ($i = 0; $i < $total; $i++) {
+                $name = $names[$i % count($names)];
+                $round = intdiv($i, count($names));
+                if ($round > 0) {
+                    $name .= ' '.$this->nameSuffix($round);
+                }
+
+                $this->createProduct($types[$i % $types->count()], $name, $sizes, $priceMin, $priceMax, $tissus);
             }
         }
+    }
 
-        // Get brands
-        $brands = Brand::all();
-        if ($brands->isEmpty()) {
-            throw new \Exception('Brands must be seeded before products. Please run BrandSeeder first.');
-        }
+    private function nameSuffix(int $round): string
+    {
+        $suffixes = ['II', 'III', 'IV', 'V', 'VI'];
 
-        // Create Women's Dresses
-        $this->createProductWithVariants(
-            $womensDresses,
-            $brands->random(),
-            'Elegant Evening Dress',
-            'A stunning evening dress perfect for special occasions. Features a flowing silhouette and elegant design.',
-            [
-                ['size' => 'S', 'color' => 'Black', 'price' => 129.99, 'stock' => 25],
-                ['size' => 'M', 'color' => 'Black', 'price' => 129.99, 'stock' => 30],
-                ['size' => 'L', 'color' => 'Black', 'price' => 129.99, 'stock' => 20],
-                ['size' => 'S', 'color' => 'Red', 'price' => 129.99, 'stock' => 15],
-                ['size' => 'M', 'color' => 'Red', 'price' => 129.99, 'stock' => 18],
-            ],
-            3,
-            'Satin',
-        );
+        return $suffixes[min($round - 1, count($suffixes) - 1)];
+    }
 
-        $this->createProductWithVariants(
-            $womensDresses,
-            $brands->random(),
-            'Casual Summer Dress',
-            'Comfortable and stylish summer dress made from breathable fabric. Perfect for everyday wear.',
-            [
-                ['size' => 'XS', 'color' => 'White', 'price' => 49.99, 'stock' => 40],
-                ['size' => 'S', 'color' => 'White', 'price' => 49.99, 'stock' => 50],
-                ['size' => 'M', 'color' => 'White', 'price' => 49.99, 'stock' => 45],
-                ['size' => 'L', 'color' => 'White', 'price' => 49.99, 'stock' => 35],
-                ['size' => 'M', 'color' => 'Blue', 'price' => 49.99, 'stock' => 30],
-                ['size' => 'L', 'color' => 'Blue', 'price' => 49.99, 'stock' => 25],
-            ],
-            4,
-            'Coton',
-        );
-
-        // Create Women's Tops
-        $this->createProductWithVariants(
-            $womensTops,
-            $brands->random(),
-            'Silk Blouse',
-            'Luxurious silk blouse with a classic fit. Perfect for both professional and casual settings.',
-            [
-                ['size' => 'S', 'color' => 'White', 'price' => 79.99, 'stock' => 20],
-                ['size' => 'M', 'color' => 'White', 'price' => 79.99, 'stock' => 25],
-                ['size' => 'L', 'color' => 'White', 'price' => 79.99, 'stock' => 18],
-                ['size' => 'S', 'color' => 'Pink', 'price' => 79.99, 'stock' => 15],
-                ['size' => 'M', 'color' => 'Pink', 'price' => 79.99, 'stock' => 20],
-            ],
-            2,
-            'Soie',
-        );
-
-        $this->createProductWithVariants(
-            $womensTops,
-            $brands->random(),
-            'Casual T-Shirt',
-            'Soft and comfortable cotton t-shirt. Available in multiple colors and sizes.',
-            [
-                ['size' => 'XS', 'color' => 'Black', 'price' => 29.99, 'stock' => 60],
-                ['size' => 'S', 'color' => 'Black', 'price' => 29.99, 'stock' => 70],
-                ['size' => 'M', 'color' => 'Black', 'price' => 29.99, 'stock' => 65],
-                ['size' => 'L', 'color' => 'Black', 'price' => 29.99, 'stock' => 55],
-                ['size' => 'XL', 'color' => 'Black', 'price' => 29.99, 'stock' => 40],
-                ['size' => 'M', 'color' => 'White', 'price' => 29.99, 'stock' => 50],
-                ['size' => 'L', 'color' => 'White', 'price' => 29.99, 'stock' => 45],
-            ],
-            2,
-            'Coton',
-        );
-
-        // Create Women's Bottoms
-        $this->createProductWithVariants(
-            $womensBottoms,
-            $brands->random(),
-            'High-Waisted Jeans',
-            'Classic high-waisted jeans with a flattering fit. Made from premium denim.',
-            [
-                ['size' => '26', 'color' => 'Blue', 'price' => 89.99, 'stock' => 30],
-                ['size' => '28', 'color' => 'Blue', 'price' => 89.99, 'stock' => 35],
-                ['size' => '30', 'color' => 'Blue', 'price' => 89.99, 'stock' => 40],
-                ['size' => '32', 'color' => 'Blue', 'price' => 89.99, 'stock' => 25],
-                ['size' => '28', 'color' => 'Black', 'price' => 89.99, 'stock' => 20],
-                ['size' => '30', 'color' => 'Black', 'price' => 89.99, 'stock' => 25],
-            ],
-            3,
-            'Denim',
-        );
-
-        // Create Men's Tops
-        $this->createProductWithVariants(
-            $mensTops,
-            $brands->random(),
-            'Classic Oxford Shirt',
-            'Timeless Oxford shirt perfect for business or casual wear. Made from premium cotton.',
-            [
-                ['size' => 'S', 'color' => 'White', 'price' => 69.99, 'stock' => 35],
-                ['size' => 'M', 'color' => 'White', 'price' => 69.99, 'stock' => 40],
-                ['size' => 'L', 'color' => 'White', 'price' => 69.99, 'stock' => 38],
-                ['size' => 'XL', 'color' => 'White', 'price' => 69.99, 'stock' => 25],
-                ['size' => 'M', 'color' => 'Blue', 'price' => 69.99, 'stock' => 30],
-                ['size' => 'L', 'color' => 'Blue', 'price' => 69.99, 'stock' => 28],
-            ],
-            2,
-            'Coton',
-        );
-
-        $this->createProductWithVariants(
-            $mensTops,
-            $brands->random(),
-            'Cotton T-Shirt',
-            'Comfortable and durable cotton t-shirt. Perfect for everyday wear.',
-            [
-                ['size' => 'S', 'color' => 'Black', 'price' => 24.99, 'stock' => 80],
-                ['size' => 'M', 'color' => 'Black', 'price' => 24.99, 'stock' => 90],
-                ['size' => 'L', 'color' => 'Black', 'price' => 24.99, 'stock' => 85],
-                ['size' => 'XL', 'color' => 'Black', 'price' => 24.99, 'stock' => 70],
-                ['size' => 'XXL', 'color' => 'Black', 'price' => 24.99, 'stock' => 50],
-                ['size' => 'M', 'color' => 'Gray', 'price' => 24.99, 'stock' => 60],
-                ['size' => 'L', 'color' => 'Gray', 'price' => 24.99, 'stock' => 55],
-            ],
-            2,
-            'Coton',
-        );
-
-        // Create Men's Bottoms
-        $this->createProductWithVariants(
-            $mensBottoms,
-            $brands->random(),
-            'Classic Chinos',
-            'Versatile chinos that can be dressed up or down. Perfect for any occasion.',
-            [
-                ['size' => '30', 'color' => 'Khaki', 'price' => 79.99, 'stock' => 40],
-                ['size' => '32', 'color' => 'Khaki', 'price' => 79.99, 'stock' => 45],
-                ['size' => '34', 'color' => 'Khaki', 'price' => 79.99, 'stock' => 50],
-                ['size' => '36', 'color' => 'Khaki', 'price' => 79.99, 'stock' => 35],
-                ['size' => '32', 'color' => 'Navy', 'price' => 79.99, 'stock' => 30],
-                ['size' => '34', 'color' => 'Navy', 'price' => 79.99, 'stock' => 35],
-            ],
-            2,
-            'Coton mélangé',
-        );
-
-        // Create Bags
-        $this->createProductWithVariants(
-            $bags,
-            $brands->random(),
-            'Leather Handbag',
-            'Elegant leather handbag with multiple compartments. Perfect for daily use.',
-            [
-                ['size' => null, 'color' => 'Black', 'price' => 199.99, 'stock' => 15],
-                ['size' => null, 'color' => 'Brown', 'price' => 199.99, 'stock' => 12],
-                ['size' => null, 'color' => 'Red', 'price' => 199.99, 'stock' => 8],
-            ],
-            3,
-            'Cuir',
-        );
-
-        $this->createProductWithVariants(
-            $bags,
-            $brands->random(),
-            'Backpack',
-            'Stylish and functional backpack. Perfect for work or travel.',
-            [
-                ['size' => null, 'color' => 'Black', 'price' => 79.99, 'stock' => 50],
-                ['size' => null, 'color' => 'Gray', 'price' => 79.99, 'stock' => 45],
-                ['size' => null, 'color' => 'Blue', 'price' => 79.99, 'stock' => 40],
-            ],
-            2,
-            'Nylon',
-        );
+    private function categoryBySlug(string $slug): ?Category
+    {
+        return Category::query()
+            ->whereHas('translations', fn ($q) => $q->where('slug', $slug))
+            ->first();
     }
 
     /**
-     * Helper method to create a product with variants and images.
+     * @param  list<string>  $sizes
+     * @param  list<string>  $tissus
      */
-    private function createProductWithVariants(
+    private function createProduct(
         Category $category,
-        Brand $brand,
-        string $title,
-        string $description,
-        array $variants,
-        int $imageCount = 2,
-        ?string $tissu = null,
-    ): Product {
+        string $name,
+        array $sizes,
+        float $priceMin,
+        float $priceMax,
+        array $tissus,
+    ): void {
+        $price = $this->randomPrice($priceMin, $priceMax);
+
+        // Put roughly a quarter of the catalogue on sale so the storefront has
+        // realistic discounted pricing to render (original -> struck-through).
+        $compareAt = null;
+        if (random_int(1, 100) <= 28) {
+            $compareAt = $price;
+            $discount = random_int(20, 40) / 100;
+            $price = floor($compareAt * (1 - $discount)) + 0.90;
+            if ($price >= $compareAt) {
+                $price = max($compareAt - 5.00, 1.90);
+            }
+        }
+
         $product = Product::create([
             'category_id' => $category->id,
-            'brand_id' => $brand->id,
-            'tissu' => $tissu,
+            'brand_id' => $this->brands->random()->id,
+            'tissu' => $tissus[array_rand($tissus)],
+            'is_published' => true,
+            'published_at' => now(),
         ]);
+
+        $description = 'Capo HARIMI selezionato per comfort e qualità dei materiali. '
+            .'Vestibilità curata e finiture pulite per l\'uso quotidiano.';
 
         foreach (config('harimi.locales', ['it', 'en']) as $loc) {
             $product->translations()->create([
                 'locale' => $loc,
-                'title' => $title,
+                'slug' => \App\Support\UniqueSlug::make($name, 'product_translations', $loc),
+                'title' => $name,
                 'description' => $description,
+                'care_notes' => $loc === 'it' ? 'Lavare a 30°. Non candeggiare.' : 'Wash at 30°C. Do not bleach.',
+                'fit_notes' => $loc === 'it' ? 'Veste regolare. Consulta la guida alle taglie.' : 'True to size. See the size guide.',
             ]);
         }
 
-        // Create variants
-        $primaryImage = true;
-        foreach ($variants as $index => $variant) {
-            ProductVariant::create([
-                'product_id' => $product->id,
-                'size' => $variant['size'],
-                'color' => $variant['color'],
-                'color_hex' => $this->seedHexForColor((string) $variant['color']),
-                'price' => $variant['price'],
-                'stock' => $variant['stock'],
-            ]);
+        // 1-2 colors × 2-3 sizes -> a handful of variants per product.
+        $chosenColors = $this->pickColors(random_int(1, 2));
+        $chosenSizes = $this->pickSizes($sizes, random_int(2, 3));
+
+        foreach ($chosenColors as [$colorName, $colorHex]) {
+            foreach ($chosenSizes as $size) {
+                ProductVariant::create([
+                    'product_id' => $product->id,
+                    'size' => $size,
+                    'color' => $colorName,
+                    'color_hex' => $colorHex,
+                    'price' => $price,
+                    'compare_at_price' => $compareAt,
+                    'stock' => random_int(0, 40),
+                ]);
+            }
         }
 
-        // Create images
-        for ($i = 0; $i < $imageCount; $i++) {
+        $images = $this->pickImages($this->imagePool, random_int(2, 4));
+        foreach ($images as $i => $path) {
             ProductImage::create([
                 'product_id' => $product->id,
-                'path' => "products/{$product->id}/image-".($i + 1).'.jpg',
-                'is_primary' => $primaryImage && $i === 0,
+                'path' => $path,
+                'is_primary' => $i === 0,
                 'position' => $i,
             ]);
         }
-
-        return $product;
     }
 
-    private function categoryByLocalizedName(string $name): ?Category
+    private function randomPrice(float $min, float $max): float
     {
-        return Category::query()
-            ->whereHas('translations', function ($q) use ($name) {
-                $q->where('locale', config('harimi.admin_list_locale', 'it'))
-                    ->where('name', $name);
-            })
-            ->first();
+        $whole = random_int((int) floor($min), (int) floor($max));
+
+        return $whole + 0.90;
     }
 
-    private function seedHexForColor(string $color): string
+    /**
+     * @return list<array{string, string}>
+     */
+    private function pickColors(int $count): array
     {
-        return match (strtolower(trim($color))) {
-            'black' => '#000000',
-            'white' => '#FFFFFF',
-            'red' => '#E53935',
-            'blue' => '#1E88E5',
-            'pink' => '#EC407A',
-            'gray', 'grey' => '#757575',
-            'khaki' => '#C3B091',
-            'navy' => '#283593',
-            'brown' => '#6D4C41',
-            default => '#5E35B1',
-        };
+        $pool = $this->colors;
+        shuffle($pool);
+
+        return array_slice($pool, 0, min($count, count($pool)));
+    }
+
+    /**
+     * @param  list<string>  $sizes
+     * @return list<string>
+     */
+    private function pickSizes(array $sizes, int $count): array
+    {
+        shuffle($sizes);
+
+        return array_slice($sizes, 0, min($count, count($sizes)));
     }
 }

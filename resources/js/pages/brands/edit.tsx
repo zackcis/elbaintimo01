@@ -22,6 +22,7 @@ interface Brand {
     id: number;
     name: string;
     logo: string | null;
+    hero_path?: string | null;
     translations?: BrandTranslationRow[];
 }
 
@@ -34,6 +35,8 @@ export default function EditBrand({ brand }: EditBrandProps) {
     const page = usePage();
     const errors = (page.props as { errors?: Record<string, string> }).errors || {};
     const [logoFile, setLogoFile] = useState<File | null>(null);
+    const [heroFile, setHeroFile] = useState<File | null>(null);
+    const [clearHero, setClearHero] = useState(false);
 
     const nameFor = (loc: string) => brand.translations?.find((t) => t.locale === loc)?.name ?? brand.name;
 
@@ -52,6 +55,11 @@ export default function EditBrand({ brand }: EditBrandProps) {
         uploadData.append('name[en]', (formData.get('name[en]') as string) || '');
         if (logoFile) {
             uploadData.append('logo', logoFile);
+        }
+        if (heroFile) {
+            uploadData.append('hero', heroFile);
+        } else if (clearHero) {
+            uploadData.append('clear_hero', '1');
         }
 
         router.post(brandUpdate.url({ brand: brand.id }), uploadData, {
@@ -119,6 +127,38 @@ export default function EditBrand({ brand }: EditBrandProps) {
                                     label={t('brands.logo_optional')}
                                 />
                                 <InputError message={errors.logo} />
+                            </div>
+
+                            <div className="grid gap-2">
+                                <SingleImageUpload
+                                    value={heroFile || (!clearHero ? brand.hero_path : null)}
+                                    onChange={(file) => {
+                                        setHeroFile(file);
+                                        if (file) {
+                                            setClearHero(false);
+                                        }
+                                    }}
+                                    preview={
+                                        !clearHero && brand.hero_path
+                                            ? `/storage/${brand.hero_path}`
+                                            : null
+                                    }
+                                    label={t('brands.hero_optional')}
+                                />
+                                {brand.hero_path && !clearHero ? (
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        className="border-gray-300 w-fit"
+                                        onClick={() => {
+                                            setHeroFile(null);
+                                            setClearHero(true);
+                                        }}
+                                    >
+                                        {t('site_media.clear')}
+                                    </Button>
+                                ) : null}
+                                <InputError message={errors.hero} />
                             </div>
                         </CardContent>
                     </Card>

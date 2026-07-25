@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Support\StorefrontLocale;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -17,6 +19,7 @@ class Category extends Model
      */
     protected $fillable = [
         'parent_id',
+        'hero_path',
     ];
 
     /**
@@ -53,18 +56,48 @@ class Category extends Model
         return $this->hasMany(CategoryTranslation::class);
     }
 
+    public function translationFor(string $locale): ?CategoryTranslation
+    {
+        $translations = $this->relationLoaded('translations')
+            ? $this->translations
+            : $this->translations()->get();
+
+        return $translations->firstWhere('locale', $locale)
+            ?? $translations->firstWhere('locale', StorefrontLocale::fallback());
+    }
+
     public function nameForLocale(string $locale): string
     {
-        if ($this->relationLoaded('translations')) {
-            return (string) ($this->translations->firstWhere('locale', $locale)?->name ?? '');
-        }
+        return (string) ($this->translationFor($locale)?->name ?? '');
+    }
 
-        return (string) ($this->translations()->where('locale', $locale)->value('name') ?? '');
+    public function slugForLocale(string $locale): string
+    {
+        return (string) ($this->translationFor($locale)?->slug ?? '');
     }
 
     public function getNameAttribute(): string
     {
         return $this->nameForLocale((string) config('harimi.admin_list_locale', 'it'));
+    }
+
+    public function scopeWhereStorefrontSlug(Builder $query, string $slug, string $locale): Builder
+    {
+        $fallback = StorefrontLocale::fallback();
+
+        $categoryId = CategoryTranslation::query()
+            ->where('slug', $slug)
+            ->where('locale', $locale)
+            ->value('category_id');
+
+        if ($categoryId === null && $locale !== $fallback) {
+            $categoryId = CategoryTranslation::query()
+                ->where('slug', $slug)
+                ->where('locale', $fallback)
+                ->value('category_id');
+        }
+
+        return $query->where('id', $categoryId ?? 0);
     }
 
     /**
@@ -166,6 +199,34 @@ class Category extends Model
                     'images' => $cat->images,
                     'products_count' => (int) ($cat->products_count ?? 0),
                     'children' => static::nestedTree($all, $cat->id),
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public static function storefrontTree(Collection $all, string $locale, ?int $parentId = null): array
+    {
+        return $all
+            ->filter(fn (self $c) => $c->parent_id === $parentId)
+            ->sortBy(fn (self $c) => $c->nameForLocale($locale), SORT_NATURAL | SORT_FLAG_CASE)
+            ->values()
+            ->map(function (self $cat) use ($all, $locale) {
+                $image = $cat->relationLoaded('images')
+                    ? $cat->images->first()
+                    : null;
+
+                return [
+                    'id' => $cat->id,
+                    'slug' => $cat->slugForLocale($locale),
+                    'name' => $cat->nameForLocale($locale),
+                    'parent_id' => $cat->parent_id,
+                    'image_url' => $image ? \App\Support\MediaUrl::fromPath($image->path) : null,
+                    'hero_url' => \App\Support\MediaUrl::fromPath($cat->hero_path),
+                    'children' => static::storefrontTree($all, $locale, $cat->id),
                 ];
             })
             ->values()

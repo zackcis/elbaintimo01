@@ -39,6 +39,7 @@ export interface VariantFormRow {
     color: string;
     color_hex: string;
     price: string;
+    compare_at_price?: string;
     stock: string;
 }
 
@@ -59,6 +60,7 @@ export function validateVariantRows(variantRows: VariantFormRow[]): Record<strin
         }
 
         const priceRaw = String(v.price ?? '').trim();
+        let priceNum: number | null = null;
         if (priceRaw === '') {
             out[`variants.${i}.price`] = 'Price is required.';
         } else {
@@ -67,6 +69,21 @@ export function validateVariantRows(variantRows: VariantFormRow[]): Record<strin
                 out[`variants.${i}.price`] = 'Price must be a valid number.';
             } else if (n < 0 || n > 999_999.99) {
                 out[`variants.${i}.price`] = 'Price must be between 0 and 999999.99.';
+            } else {
+                priceNum = n;
+            }
+        }
+
+        const compareRaw = String(v.compare_at_price ?? '').trim();
+        if (compareRaw !== '') {
+            const c = Number(compareRaw);
+            if (!Number.isFinite(c)) {
+                out[`variants.${i}.compare_at_price`] = 'Was price must be a valid number.';
+            } else if (c < 0 || c > 999_999.99) {
+                out[`variants.${i}.compare_at_price`] = 'Was price must be between 0 and 999999.99.';
+            } else if (priceNum !== null && c <= priceNum) {
+                out[`variants.${i}.compare_at_price`] =
+                    'Was price must be higher than the selling price to show a discount.';
             }
         }
 
