@@ -223,7 +223,7 @@ class ProductController extends Controller
         $brands = Brand::query()->with('translations')->get()->sortBy('name')->values();
         $relatedCandidates = Product::query()
             ->with(['translations', 'images'])
-            ->where('id', '!=', $product->id)
+            ->where('products.id', '!=', $product->id)
             ->adminOrderByTitle()
             ->limit(200)
             ->get()
