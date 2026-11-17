@@ -629,7 +629,7 @@ export default function ProductsIndex({ products, filters, tissuOptions = [] }: 
                                                     >
                                                         <Badge
                                                             className={cn(
-                                                                'border-0 bg-burgundy/90 font-sans uppercase tracking-wide text-white shadow-sm backdrop-blur-sm',
+                                                                'border-0 bg-black/70 font-sans uppercase tracking-wide text-white shadow-sm backdrop-blur-sm',
                                                                 density === 'sm'
                                                                     ? 'px-1.5 py-0 text-[9px]'
                                                                     : 'text-xs',
