@@ -26,9 +26,9 @@ class CategorySeeder extends Seeder
         $this->imagePool = $this->mediaFiles('categories');
         $this->fallbackPool = $this->mediaFiles('products');
 
-        $women = $this->createCategory(null, 'Donna', 'Women', 'women');
-        $men = $this->createCategory(null, 'Uomo', 'Men', 'men');
-        $kids = $this->createCategory(null, 'Bambini', 'Kids', 'kids');
+        $women = $this->createCategory(null, 'Donna', 'Women', 'women', 0);
+        $men = $this->createCategory(null, 'Uomo', 'Men', 'men', 1);
+        $kids = $this->createCategory(null, 'Bambini', 'Kids', 'kids', 2);
 
         $womenChildren = [
             ['Reggiseno', 'Bras', 'bras'],
@@ -118,12 +118,12 @@ class CategorySeeder extends Seeder
         ];
 
         foreach ($groups as [$parent, $children]) {
-            foreach ($children as [$it, $en, $slug]) {
-                $child = $this->createCategory($parent->id, $it, $en, $slug);
+            foreach (array_values($children) as $childIndex => [$it, $en, $slug]) {
+                $child = $this->createCategory($parent->id, $it, $en, $slug, $childIndex);
                 $this->attachImage($child);
 
-                foreach ($typesByParent[$slug] ?? [] as [$typeIt, $typeEn, $typeSlug]) {
-                    $type = $this->createCategory($child->id, $typeIt, $typeEn, $typeSlug);
+                foreach (array_values($typesByParent[$slug] ?? []) as $typeIndex => [$typeIt, $typeEn, $typeSlug]) {
+                    $type = $this->createCategory($child->id, $typeIt, $typeEn, $typeSlug, $typeIndex);
                     $this->attachImage($type);
                 }
             }
@@ -148,10 +148,11 @@ class CategorySeeder extends Seeder
         ]);
     }
 
-    private function createCategory(?int $parentId, string $nameIt, string $nameEn, string $slug): Category
+    private function createCategory(?int $parentId, string $nameIt, string $nameEn, string $slug, int $position = 0): Category
     {
         $category = Category::create([
             'parent_id' => $parentId,
+            'position' => $position,
         ]);
 
         foreach (['it' => $nameIt, 'en' => $nameEn] as $loc => $name) {

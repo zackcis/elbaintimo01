@@ -62,6 +62,8 @@ Route::prefix('{locale}')
 
             Route::resource('products', ProductController::class);
 
+            Route::post('categories/reorder', [CategoryController::class, 'reorder'])
+                ->name('categories.reorder');
             Route::resource('categories', CategoryController::class);
 
             Route::resource('brands', BrandController::class)->except(['show']);

@@ -19,6 +19,7 @@ class Category extends Model
      */
     protected $fillable = [
         'parent_id',
+        'position',
         'hero_path',
     ];
 
@@ -31,6 +32,16 @@ class Category extends Model
         'name',
     ];
 
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'position' => 'integer',
+        ];
+    }
+
     public function parent(): BelongsTo
     {
         return $this->belongsTo(Category::class, 'parent_id');
@@ -38,7 +49,47 @@ class Category extends Model
 
     public function children(): HasMany
     {
-        return $this->hasMany(Category::class, 'parent_id');
+        return $this->hasMany(Category::class, 'parent_id')
+            ->orderBy('position')
+            ->orderBy('id');
+    }
+
+    public static function nextPosition(?int $parentId): int
+    {
+        $max = static::query()
+            ->where('parent_id', $parentId)
+            ->max('position');
+
+        return $max === null ? 0 : ((int) $max + 1);
+    }
+
+    /**
+     * @param  list<int>  $orderedIds
+     */
+    public static function reorderSiblings(?int $parentId, array $orderedIds): void
+    {
+        $siblings = static::query()
+            ->where('parent_id', $parentId)
+            ->orderBy('position')
+            ->orderBy('id')
+            ->get(['id', 'parent_id']);
+
+        $siblingIds = $siblings->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $orderedIds = array_values(array_map('intval', $orderedIds));
+
+        sort($siblingIds);
+        $sortedOrdered = $orderedIds;
+        sort($sortedOrdered);
+
+        if ($siblingIds !== $sortedOrdered) {
+            throw new \InvalidArgumentException('Ordered ids must match the full sibling set.');
+        }
+
+        foreach ($orderedIds as $position => $id) {
+            static::query()
+                ->where('id', $id)
+                ->update(['position' => $position]);
+        }
     }
 
     public function products(): HasMany
@@ -140,7 +191,7 @@ class Category extends Model
 
         $categories = static::query()
             ->with('translations')
-            ->get(['id', 'parent_id']);
+            ->get(['id', 'parent_id', 'position']);
 
         $byParent = [];
         foreach ($categories as $c) {
@@ -148,7 +199,19 @@ class Category extends Model
             $byParent[$pid][] = $c;
         }
         foreach ($byParent as &$list) {
-            usort($list, fn (self $a, self $b) => strcmp($a->nameForLocale($locale), $b->nameForLocale($locale)));
+            usort($list, function (self $a, self $b) use ($locale): int {
+                $byPosition = $a->position <=> $b->position;
+                if ($byPosition !== 0) {
+                    return $byPosition;
+                }
+
+                $byName = strnatcasecmp($a->nameForLocale($locale), $b->nameForLocale($locale));
+                if ($byName !== 0) {
+                    return $byName;
+                }
+
+                return $a->id <=> $b->id;
+            });
         }
         unset($list);
 
@@ -179,7 +242,10 @@ class Category extends Model
 
         return $all
             ->filter(fn (self $c) => $c->parent_id === $parentId)
-            ->sortBy(fn (self $c) => $c->nameForLocale($locale), SORT_NATURAL | SORT_FLAG_CASE)
+            ->sortBy([
+                ['position', 'asc'],
+                ['id', 'asc'],
+            ])
             ->values()
             ->map(function (self $cat) use ($all, $locale) {
                 $parentMeta = null;
@@ -195,6 +261,7 @@ class Category extends Model
                     'id' => $cat->id,
                     'name' => $cat->nameForLocale($locale),
                     'parent_id' => $cat->parent_id,
+                    'position' => (int) $cat->position,
                     'parent' => $parentMeta,
                     'images' => $cat->images,
                     'products_count' => (int) ($cat->products_count ?? 0),
@@ -212,7 +279,10 @@ class Category extends Model
     {
         return $all
             ->filter(fn (self $c) => $c->parent_id === $parentId)
-            ->sortBy(fn (self $c) => $c->nameForLocale($locale), SORT_NATURAL | SORT_FLAG_CASE)
+            ->sortBy([
+                ['position', 'asc'],
+                ['id', 'asc'],
+            ])
             ->values()
             ->map(function (self $cat) use ($all, $locale) {
                 $image = $cat->relationLoaded('images')
@@ -224,6 +294,7 @@ class Category extends Model
                     'slug' => $cat->slugForLocale($locale),
                     'name' => $cat->nameForLocale($locale),
                     'parent_id' => $cat->parent_id,
+                    'position' => (int) $cat->position,
                     'image_url' => $image ? \App\Support\MediaUrl::fromPath($image->path) : null,
                     'hero_url' => \App\Support\MediaUrl::fromPath($cat->hero_path),
                     'children' => static::storefrontTree($all, $locale, $cat->id),

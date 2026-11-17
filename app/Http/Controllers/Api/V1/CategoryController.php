@@ -49,11 +49,15 @@ class CategoryController extends Controller
                 'image_url' => MediaUrl::fromPath($image?->path),
                 'hero_url' => MediaUrl::fromPath($category->hero_path),
                 'children' => $category->children
-                    ->sortBy(fn (Category $c) => $c->nameForLocale($locale), SORT_NATURAL | SORT_FLAG_CASE)
+                    ->sortBy([
+                        ['position', 'asc'],
+                        ['id', 'asc'],
+                    ])
                     ->values()
                     ->map(fn (Category $child) => [
                         'slug' => $child->slugForLocale($locale),
                         'name' => $child->nameForLocale($locale),
+                        'position' => (int) $child->position,
                         'image_url' => MediaUrl::fromPath($child->images->first()?->path),
                         'hero_url' => MediaUrl::fromPath($child->hero_path),
                     ]),

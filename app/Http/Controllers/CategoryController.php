@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\ReorderCategoriesRequest;
 use App\Http\Requests\StoreCategoryRequest;
 use App\Http\Requests\UpdateCategoryRequest;
 use App\Models\Category;
@@ -9,8 +10,10 @@ use App\Models\CategoryImage;
 use App\Traits\HandlesImageUploads;
 use App\Traits\LogsActivity;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
+use InvalidArgumentException;
 
 class CategoryController extends Controller
 {
@@ -45,8 +48,11 @@ class CategoryController extends Controller
      */
     public function store(StoreCategoryRequest $request): RedirectResponse
     {
+        $parentId = $request->input('parent_id') ?: null;
+
         $category = Category::create([
-            'parent_id' => $request->input('parent_id') ?: null,
+            'parent_id' => $parentId,
+            'position' => Category::nextPosition($parentId),
         ]);
 
         foreach (config('harimi.locales', ['it', 'en']) as $loc) {
@@ -133,9 +139,16 @@ class CategoryController extends Controller
      */
     public function update(UpdateCategoryRequest $request, string $locale, Category $category): RedirectResponse
     {
-        $category->update([
-            'parent_id' => $request->input('parent_id') ?: null,
-        ]);
+        $newParentId = $request->input('parent_id') ?: null;
+        $payload = [
+            'parent_id' => $newParentId,
+        ];
+
+        if ((int) ($category->parent_id ?? 0) !== (int) ($newParentId ?? 0)) {
+            $payload['position'] = Category::nextPosition($newParentId);
+        }
+
+        $category->update($payload);
 
         foreach (config('harimi.locales', ['it', 'en']) as $loc) {
             $name = (string) $request->input("name.$loc");
@@ -212,6 +225,36 @@ class CategoryController extends Controller
 
         return redirect()->route('categories.index')
             ->with('success', 'Category updated successfully.');
+    }
+
+    /**
+     * Reorder sibling categories for storefront / admin display.
+     */
+    public function reorder(ReorderCategoriesRequest $request): RedirectResponse
+    {
+        $parentId = $request->input('parent_id') ?: null;
+        /** @var list<int> $orderedIds */
+        $orderedIds = array_map('intval', $request->input('ordered_ids', []));
+
+        try {
+            DB::transaction(function () use ($parentId, $orderedIds): void {
+                Category::reorderSiblings($parentId, $orderedIds);
+            });
+        } catch (InvalidArgumentException $e) {
+            return redirect()
+                ->route('categories.index')
+                ->withErrors(['ordered_ids' => $e->getMessage()]);
+        }
+
+        $this->logActivity(
+            'updated',
+            'Category',
+            $orderedIds[0] ?? 0,
+            'Ordine categorie aggiornato',
+        );
+
+        return redirect()->route('categories.index')
+            ->with('success', 'Category order updated successfully.');
     }
 
     /**

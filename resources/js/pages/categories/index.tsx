@@ -5,11 +5,11 @@ import { Badge } from '@/components/ui/badge';
 import { useUi } from '@/hooks/use-ui';
 import AppLayout from '@/layouts/app-layout';
 import { dashboard } from '@/routes';
-import { create as categoriesCreate, destroy as categoryDestroy, edit as categoryEdit, index as categoriesIndex } from '@/routes/categories';
+import { create as categoriesCreate, destroy as categoryDestroy, edit as categoryEdit, index as categoriesIndex, reorder as categoriesReorder } from '@/routes/categories';
 import { index as productsIndex } from '@/routes/products';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, router } from '@inertiajs/react';
-import { FolderTree, Plus, Edit, Trash2, Tag, Package } from 'lucide-react';
+import { ArrowDown, ArrowUp, FolderTree, Plus, Edit, Trash2, Tag, Package } from 'lucide-react';
 import { ConfirmationDialog } from '@/components/confirmation-dialog';
 import { useState, useEffect, useMemo } from 'react';
 import { CategoryListSkeleton } from '@/components/skeleton-loaders';
@@ -33,6 +33,7 @@ interface Category {
     id: number;
     name: string;
     parent_id: number | null;
+    position?: number;
     parent?: CategoryParent | null;
     children?: Category[];
     images?: CategoryImage[];
@@ -101,19 +102,78 @@ function CategoryImagePanel({
     );
 }
 
+function CategoryOrderControls({
+    canMoveUp,
+    canMoveDown,
+    onMoveUp,
+    onMoveDown,
+    compact,
+}: {
+    canMoveUp: boolean;
+    canMoveDown: boolean;
+    onMoveUp: () => void;
+    onMoveDown: () => void;
+    compact?: boolean;
+}) {
+    const { t } = useUi();
+    return (
+        <div className={cn('flex items-center gap-1', compact ? '' : 'shrink-0')}>
+            <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className={cn(compact ? 'h-7 w-7' : 'h-8 w-8')}
+                disabled={!canMoveUp}
+                onClick={onMoveUp}
+                title={t('categories.move_up')}
+                aria-label={t('categories.move_up')}
+            >
+                <ArrowUp className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className={cn(compact ? 'h-7 w-7' : 'h-8 w-8')}
+                disabled={!canMoveDown}
+                onClick={onMoveDown}
+                title={t('categories.move_down')}
+                aria-label={t('categories.move_down')}
+            >
+                <ArrowDown className="h-3.5 w-3.5" />
+            </Button>
+        </div>
+    );
+}
+
 function CategoryActions({
     categoryId,
     onDelete,
     density,
+    canMoveUp,
+    canMoveDown,
+    onMoveUp,
+    onMoveDown,
 }: {
     categoryId: number;
     onDelete: (id: number) => void;
     density?: 'lg' | 'md' | 'sm';
+    canMoveUp: boolean;
+    canMoveDown: boolean;
+    onMoveUp: () => void;
+    onMoveDown: () => void;
 }) {
     const sm = density === 'sm';
     const { t } = useUi();
     return (
         <div className={cn('flex flex-wrap items-center gap-2', sm ? 'pt-2' : 'pt-4')}>
+            <CategoryOrderControls
+                canMoveUp={canMoveUp}
+                canMoveDown={canMoveDown}
+                onMoveUp={onMoveUp}
+                onMoveDown={onMoveDown}
+                compact={sm}
+            />
             <Link href={`${productsIndex().url}?category=${categoryId}`} className="min-w-[88px] flex-1">
                 <Button
                     variant="outline"
@@ -159,6 +219,33 @@ export default function CategoriesIndex({ categories }: CategoriesProps) {
 
     const flatCategories = useMemo(() => flattenCategoryTree(categories), [categories]);
 
+    const siblingsByParent = useMemo(() => {
+        const map = new Map<string, Category[]>();
+        const walk = (nodes: Category[]) => {
+            for (const node of nodes) {
+                const key = node.parent_id === null || node.parent_id === undefined ? 'root' : String(node.parent_id);
+                const list = map.get(key) ?? [];
+                list.push(node);
+                map.set(key, list);
+                if (node.children?.length) {
+                    walk(node.children);
+                }
+            }
+        };
+        walk(categories);
+        return map;
+    }, [categories]);
+
+    const siblingMeta = useMemo(() => {
+        const meta = new Map<number, { index: number; siblings: Category[] }>();
+        for (const siblings of siblingsByParent.values()) {
+            siblings.forEach((sibling, index) => {
+                meta.set(sibling.id, { index, siblings });
+            });
+        }
+        return meta;
+    }, [siblingsByParent]);
+
     useEffect(() => {
         const timer = setTimeout(() => {
             setIsLoading(false);
@@ -174,6 +261,27 @@ export default function CategoriesIndex({ categories }: CategoriesProps) {
         if (deleteDialog.categoryId) {
             router.delete(categoryDestroy.url({ category: deleteDialog.categoryId }));
         }
+    };
+
+    const moveCategory = (categoryId: number, direction: -1 | 1) => {
+        const info = siblingMeta.get(categoryId);
+        if (!info) {
+            return;
+        }
+        const targetIndex = info.index + direction;
+        if (targetIndex < 0 || targetIndex >= info.siblings.length) {
+            return;
+        }
+        const ordered = info.siblings.map((sibling) => sibling.id);
+        const [moved] = ordered.splice(info.index, 1);
+        ordered.splice(targetIndex, 0, moved);
+
+        router.post(categoriesReorder.url(), {
+            parent_id: info.siblings[0]?.parent_id ?? null,
+            ordered_ids: ordered,
+        }, {
+            preserveScroll: true,
+        });
     };
 
     return (
@@ -194,6 +302,9 @@ export default function CategoriesIndex({ categories }: CategoriesProps) {
                         <h1 className="mb-1 text-3xl font-semibold text-gray-900">{t('categories.title')}</h1>
                         <p className="text-sm text-gray-600">
                             {t('categories.subtitle')}
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                            {t('categories.reorder_hint')}
                         </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2 sm:justify-end">
@@ -227,12 +338,18 @@ export default function CategoriesIndex({ categories }: CategoriesProps) {
                                     <th className="px-3 py-3">{t('categories.table.parent')}</th>
                                     <th className="px-3 py-3 text-right">{t('categories.table.subcategories')}</th>
                                     <th className="px-3 py-3 text-right">{t('categories.table.products')}</th>
+                                    <th className="px-3 py-3 text-center">{t('categories.table.order')}</th>
                                     <th className="px-3 py-3 text-right">{t('common.actions')}</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {flatCategories.map((category) => {
                                     const subCount = category.children?.length ?? 0;
+                                    const meta = siblingMeta.get(category.id);
+                                    const canMoveUp = Boolean(meta && meta.index > 0);
+                                    const canMoveDown = Boolean(
+                                        meta && meta.index < meta.siblings.length - 1,
+                                    );
                                     return (
                                         <tr
                                             key={category.id}
@@ -258,6 +375,17 @@ export default function CategoriesIndex({ categories }: CategoriesProps) {
                                             </td>
                                             <td className="px-3 py-2 align-middle text-right tabular-nums">
                                                 {category.products_count ?? '—'}
+                                            </td>
+                                            <td className="px-3 py-2 align-middle">
+                                                <div className="flex justify-center">
+                                                    <CategoryOrderControls
+                                                        canMoveUp={canMoveUp}
+                                                        canMoveDown={canMoveDown}
+                                                        onMoveUp={() => moveCategory(category.id, -1)}
+                                                        onMoveDown={() => moveCategory(category.id, 1)}
+                                                        compact
+                                                    />
+                                                </div>
                                             </td>
                                             <td className="px-3 py-2 align-middle text-right">
                                                 <Link href={`${productsIndex().url}?category=${category.id}`}>
@@ -289,6 +417,11 @@ export default function CategoriesIndex({ categories }: CategoriesProps) {
                     <div className="flex flex-col gap-2">
                         {flatCategories.map((category) => {
                             const subCount = category.children?.length ?? 0;
+                            const meta = siblingMeta.get(category.id);
+                            const canMoveUp = Boolean(meta && meta.index > 0);
+                            const canMoveDown = Boolean(
+                                meta && meta.index < meta.siblings.length - 1,
+                            );
                             return (
                                 <div
                                     key={category.id}
@@ -321,6 +454,12 @@ export default function CategoriesIndex({ categories }: CategoriesProps) {
                                         </div>
                                     </div>
                                     <div className="flex shrink-0 flex-wrap gap-1">
+                                        <CategoryOrderControls
+                                            canMoveUp={canMoveUp}
+                                            canMoveDown={canMoveDown}
+                                            onMoveUp={() => moveCategory(category.id, -1)}
+                                            onMoveDown={() => moveCategory(category.id, 1)}
+                                        />
                                         <Link href={`${productsIndex().url}?category=${category.id}`}>
                                             <Button variant="outline" size="sm" className="h-8">
                                                 <Package className="h-3.5 w-3.5" />
@@ -351,6 +490,11 @@ export default function CategoriesIndex({ categories }: CategoriesProps) {
                                 viewMode === 'large-icons' ? 'lg' : viewMode === 'small-icons' ? 'sm' : 'md';
                             const subCount = category.children?.length ?? 0;
                             const iconSz = density === 'lg' ? 'h-20 w-20' : density === 'sm' ? 'h-10 w-10' : 'h-16 w-16';
+                            const meta = siblingMeta.get(category.id);
+                            const canMoveUp = Boolean(meta && meta.index > 0);
+                            const canMoveDown = Boolean(
+                                meta && meta.index < meta.siblings.length - 1,
+                            );
                             return (
                                 <Card
                                     key={category.id}
@@ -400,6 +544,10 @@ export default function CategoriesIndex({ categories }: CategoriesProps) {
                                                 categoryId={category.id}
                                                 onDelete={handleDelete}
                                                 density={density}
+                                                canMoveUp={canMoveUp}
+                                                canMoveDown={canMoveDown}
+                                                onMoveUp={() => moveCategory(category.id, -1)}
+                                                onMoveDown={() => moveCategory(category.id, 1)}
                                             />
                                         </div>
                                     </CardContent>
