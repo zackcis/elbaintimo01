@@ -63,7 +63,47 @@ class MerchandisingAdminTest extends TestCase
                 ]),
             ])
             ->assertRedirect(route('merchandising.index'))
-            ->assertSessionHasErrors();
+            ->assertSessionHasNoErrors();
+
+        // Draft pins are dropped instead of blocking the whole save.
+        $this->assertDatabaseMissing('merchandising_pins', [
+            'product_id' => $draft->id,
+        ]);
+    }
+
+    public function test_staff_can_update_section_titles(): void
+    {
+        $staff = User::factory()->create(['role' => 'staff']);
+
+        $payload = $this->sectionPayload([]);
+        foreach ($payload as &$section) {
+            if ($section['slug'] === MerchandisingShelf::BestSellers->value) {
+                $section['title_it'] = 'Novità della ana';
+                $section['title_en'] = 'News of the week';
+                $section['audience'] = 'men';
+                $section['max_items'] = 10;
+                $section['rules'] = [
+                    'brand_ids' => [],
+                    'category_ids' => [],
+                    'on_sale' => true,
+                    'in_stock' => true,
+                ];
+            }
+        }
+        unset($section);
+
+        $this->actingAs($staff)
+            ->put(route('merchandising.update'), ['sections' => $payload])
+            ->assertRedirect(route('merchandising.index'))
+            ->assertSessionHas('success');
+
+        $this->assertDatabaseHas('merchandising_sections', [
+            'slug' => MerchandisingShelf::BestSellers->value,
+            'title_it' => 'Novità della ana',
+            'title_en' => 'News of the week',
+            'audience' => 'men',
+            'max_items' => 10,
+        ]);
     }
 
     public function test_unpublishing_product_removes_it_from_pins(): void

@@ -121,6 +121,10 @@ class MerchandisingController extends Controller
     {
         $this->ensureSectionsExist();
 
+        $request->merge([
+            'sections' => $this->normalizeSectionsPayload($request->input('sections')),
+        ]);
+
         $validated = $request->validate([
             'sections' => ['required', 'array'],
             'sections.*.slug' => ['required', 'string', Rule::in(MerchandisingShelf::values())],
@@ -131,9 +135,9 @@ class MerchandisingController extends Controller
             'sections.*.is_active' => ['required', 'boolean'],
             'sections.*.rules' => ['nullable', 'array'],
             'sections.*.rules.brand_ids' => ['nullable', 'array'],
-            'sections.*.rules.brand_ids.*' => ['integer', 'exists:brands,id'],
+            'sections.*.rules.brand_ids.*' => ['integer'],
             'sections.*.rules.category_ids' => ['nullable', 'array'],
-            'sections.*.rules.category_ids.*' => ['integer', 'exists:categories,id'],
+            'sections.*.rules.category_ids.*' => ['integer'],
             'sections.*.rules.on_sale' => ['nullable', 'boolean'],
             'sections.*.rules.in_stock' => ['nullable', 'boolean'],
             'sections.*.pins' => ['nullable', 'array'],
@@ -151,6 +155,11 @@ class MerchandisingController extends Controller
             }
         }
 
+        $validBrandIds = Brand::query()->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $validBrandSet = array_flip($validBrandIds);
+        $validCategoryIds = Category::query()->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $validCategorySet = array_flip($validCategoryIds);
+
         $allProductIds = [];
         foreach ($incoming as $sectionData) {
             foreach ($sectionData['pins'] ?? [] as $pin) {
@@ -158,34 +167,34 @@ class MerchandisingController extends Controller
             }
         }
 
-        if ($allProductIds !== []) {
-            $unpublished = Product::query()
+        $publishedProductIds = $allProductIds === []
+            ? []
+            : Product::query()
+                ->published()
                 ->whereIn('id', array_unique($allProductIds))
-                ->where('is_published', false)
-                ->pluck('id');
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
+        $publishedSet = array_flip($publishedProductIds);
 
-            if ($unpublished->isNotEmpty()) {
-                return back()->withErrors([
-                    'sections' => 'Only published products can be pinned to merchandising sections.',
-                ]);
-            }
-        }
-
-        DB::transaction(function () use ($incoming): void {
+        DB::transaction(function () use ($incoming, $validBrandSet, $validCategorySet, $publishedSet): void {
             foreach (MerchandisingShelf::values() as $slug) {
                 /** @var array<string, mixed> $data */
                 $data = $incoming->get($slug);
                 $section = MerchandisingSection::query()->where('slug', $slug)->firstOrFail();
 
+                $brandIds = array_values(array_unique(array_filter(
+                    array_map('intval', $data['rules']['brand_ids'] ?? []),
+                    fn (int $id) => isset($validBrandSet[$id])
+                )));
+                $categoryIds = array_values(array_unique(array_filter(
+                    array_map('intval', $data['rules']['category_ids'] ?? []),
+                    fn (int $id) => isset($validCategorySet[$id])
+                )));
+
                 $rules = [
-                    'brand_ids' => array_values(array_unique(array_map(
-                        'intval',
-                        $data['rules']['brand_ids'] ?? []
-                    ))),
-                    'category_ids' => array_values(array_unique(array_map(
-                        'intval',
-                        $data['rules']['category_ids'] ?? []
-                    ))),
+                    'brand_ids' => $brandIds,
+                    'category_ids' => $categoryIds,
                     'on_sale' => (bool) ($data['rules']['on_sale'] ?? false),
                     'in_stock' => array_key_exists('in_stock', $data['rules'] ?? [])
                         && $data['rules']['in_stock'] !== null
@@ -220,7 +229,7 @@ class MerchandisingController extends Controller
                 $seen = [];
                 foreach (array_values($data['pins'] ?? []) as $position => $pin) {
                     $productId = (int) $pin['product_id'];
-                    if (isset($seen[$productId])) {
+                    if (isset($seen[$productId]) || ! isset($publishedSet[$productId])) {
                         continue;
                     }
                     $seen[$productId] = true;
@@ -228,7 +237,7 @@ class MerchandisingController extends Controller
                     MerchandisingPin::query()->create([
                         'section_id' => $section->id,
                         'product_id' => $productId,
-                        'position' => $position,
+                        'position' => count($seen) - 1,
                         'mode' => $pin['mode'],
                     ]);
                 }
@@ -239,6 +248,90 @@ class MerchandisingController extends Controller
 
         return redirect()->route('merchandising.index')
             ->with('success', 'Merchandising sections updated.');
+    }
+
+    /**
+     * Coerce Inertia/JSON payload types so boolean/integer rules don't fail silently.
+     *
+     * @param  mixed  $sections
+     * @return list<array<string, mixed>>
+     */
+    private function normalizeSectionsPayload(mixed $sections): array
+    {
+        if (! is_array($sections)) {
+            return [];
+        }
+
+        $normalized = [];
+        foreach ($sections as $section) {
+            if (! is_array($section)) {
+                continue;
+            }
+
+            $rules = is_array($section['rules'] ?? null) ? $section['rules'] : [];
+            $inStockRaw = $rules['in_stock'] ?? null;
+            $inStock = ($inStockRaw === null || $inStockRaw === '')
+                ? null
+                : $this->asBool($inStockRaw);
+
+            $pins = [];
+            foreach (is_array($section['pins'] ?? null) ? $section['pins'] : [] as $pin) {
+                if (! is_array($pin) || ! isset($pin['product_id'])) {
+                    continue;
+                }
+                $mode = ($pin['mode'] ?? 'include') === 'exclude' ? 'exclude' : 'include';
+                $pins[] = [
+                    'product_id' => (int) $pin['product_id'],
+                    'mode' => $mode,
+                ];
+            }
+
+            $audience = $section['audience'] ?? null;
+            if ($audience === '') {
+                $audience = null;
+            }
+
+            $normalized[] = [
+                'slug' => (string) ($section['slug'] ?? ''),
+                'title_it' => trim((string) ($section['title_it'] ?? '')),
+                'title_en' => trim((string) ($section['title_en'] ?? '')),
+                'audience' => is_string($audience) ? $audience : null,
+                'max_items' => max(1, min(48, (int) ($section['max_items'] ?? 12))),
+                'is_active' => $this->asBool($section['is_active'] ?? true),
+                'rules' => [
+                    'brand_ids' => array_values(array_map(
+                        'intval',
+                        is_array($rules['brand_ids'] ?? null) ? $rules['brand_ids'] : []
+                    )),
+                    'category_ids' => array_values(array_map(
+                        'intval',
+                        is_array($rules['category_ids'] ?? null) ? $rules['category_ids'] : []
+                    )),
+                    'on_sale' => $this->asBool($rules['on_sale'] ?? false),
+                    'in_stock' => $inStock,
+                ],
+                'pins' => $pins,
+            ];
+        }
+
+        return $normalized;
+    }
+
+    private function asBool(mixed $value, bool $default = false): bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+        if (is_int($value) || is_float($value)) {
+            return (bool) $value;
+        }
+        if (is_string($value)) {
+            $parsed = filter_var($value, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+
+            return $parsed ?? $default;
+        }
+
+        return $default;
     }
 
     private function ensureSectionsExist(): void

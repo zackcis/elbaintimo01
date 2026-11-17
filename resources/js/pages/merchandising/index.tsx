@@ -62,6 +62,19 @@ interface MerchandisingPageProps {
     categories: Option[];
 }
 
+function hydrateSections(initialSections: SectionState[]): SectionState[] {
+    return initialSections.map((s) => ({
+        ...s,
+        rules: {
+            brand_ids: s.rules?.brand_ids ?? [],
+            category_ids: s.rules?.category_ids ?? [],
+            on_sale: Boolean(s.rules?.on_sale),
+            in_stock: s.rules?.in_stock ?? null,
+        },
+        pins: s.pins ?? [],
+    }));
+}
+
 export default function MerchandisingIndex({
     sections: initialSections,
     publishedProducts,
@@ -70,22 +83,21 @@ export default function MerchandisingIndex({
 }: MerchandisingPageProps) {
     const { t, locale } = useUi();
     const page = usePage();
-    const flash = (page.props as { flash?: { success?: string } }).flash;
-    const errors = (page.props as { errors?: Record<string, string> }).errors || {};
-
-    const [sections, setSections] = useState<SectionState[]>(() =>
-        initialSections.map((s) => ({
-            ...s,
-            rules: {
-                brand_ids: s.rules?.brand_ids ?? [],
-                category_ids: s.rules?.category_ids ?? [],
-                on_sale: Boolean(s.rules?.on_sale),
-                in_stock: s.rules?.in_stock ?? null,
-            },
-            pins: s.pins ?? [],
-        })),
+    const flash = (page.props as { flash?: { success?: string; error?: string } }).flash;
+    const errors = (page.props as { errors?: Record<string, string | string[]> }).errors || {};
+    const errorMessages = useMemo(
+        () =>
+            Object.entries(errors).flatMap(([key, value]) => {
+                const messages = Array.isArray(value) ? value : [value];
+                return messages.filter(Boolean).map((message) =>
+                    key === 'sections' ? message : `${key}: ${message}`,
+                );
+            }),
+        [errors],
     );
 
+    const [sections, setSections] = useState<SectionState[]>(() => hydrateSections(initialSections));
+    const [saving, setSaving] = useState(false);
     const [addSelection, setAddSelection] = useState<Record<string, string>>({});
     const [addMode, setAddMode] = useState<Record<string, PinMode>>({});
 
@@ -214,29 +226,42 @@ export default function MerchandisingIndex({
 
     const handleSubmit = (e: FormEvent) => {
         e.preventDefault();
+        setSaving(true);
         router.put(
             '/' + locale + '/merchandising',
             {
-                sections: sections.map((s) => ({
-                    slug: s.slug,
-                    title_it: s.title_it,
-                    title_en: s.title_en,
-                    audience: s.audience || null,
-                    max_items: s.max_items,
-                    is_active: s.is_active,
-                    rules: {
-                        brand_ids: s.rules.brand_ids,
-                        category_ids: s.rules.category_ids,
-                        on_sale: s.rules.on_sale,
-                        in_stock: s.rules.in_stock,
-                    },
-                    pins: s.pins.map((p) => ({
-                        product_id: p.product_id,
-                        mode: p.mode,
-                    })),
-                })),
+                sections: sections.map((s) => {
+                    const rules: Record<string, unknown> = {
+                        brand_ids: s.rules.brand_ids.map(Number),
+                        category_ids: s.rules.category_ids.map(Number),
+                        on_sale: s.rules.on_sale ? 1 : 0,
+                    };
+                    if (s.rules.in_stock !== null) {
+                        rules.in_stock = s.rules.in_stock ? 1 : 0;
+                    }
+
+                    return {
+                        slug: s.slug,
+                        title_it: s.title_it,
+                        title_en: s.title_en,
+                        audience: s.audience || null,
+                        max_items: Number(s.max_items) || 12,
+                        is_active: s.is_active ? 1 : 0,
+                        rules,
+                        pins: s.pins.map((p) => ({
+                            product_id: Number(p.product_id),
+                            mode: p.mode,
+                        })),
+                    };
+                }),
             },
-            { preserveScroll: true },
+            {
+                preserveScroll: true,
+                // Keep edits only when validation fails; otherwise reload from server props.
+                preserveState: (pageResponse) =>
+                    Object.keys((pageResponse.props as { errors?: object }).errors ?? {}).length > 0,
+                onFinish: () => setSaving(false),
+            },
         );
     };
 
@@ -257,9 +282,10 @@ export default function MerchandisingIndex({
                     <Button
                         type="submit"
                         form="merchandising-form"
+                        disabled={saving}
                         className="bg-burgundy hover:bg-burgundy-dark"
                     >
-                        {t('common.save')}
+                        {saving ? '…' : t('common.save')}
                     </Button>
                 </div>
 
@@ -268,8 +294,23 @@ export default function MerchandisingIndex({
                         {flash.success}
                     </p>
                 )}
-                {errors.sections && (
-                    <p className="text-sm text-destructive">{errors.sections}</p>
+                {flash?.error && (
+                    <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                        {flash.error}
+                    </p>
+                )}
+                {errorMessages.length > 0 && (
+                    <div
+                        role="alert"
+                        className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+                    >
+                        <p className="font-medium">Save failed — fix the following:</p>
+                        <ul className="mt-1 list-disc pl-5">
+                            {errorMessages.map((message) => (
+                                <li key={message}>{message}</li>
+                            ))}
+                        </ul>
+                    </div>
                 )}
 
                 <form id="merchandising-form" onSubmit={handleSubmit} className="space-y-6">
