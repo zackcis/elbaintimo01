@@ -10,6 +10,9 @@ use Illuminate\Database\Seeder;
 
 class MerchandisingSeeder extends Seeder
 {
+    /** @var list<string> */
+    private array $audiences = ['women', 'men', 'kids'];
+
     public function run(): void
     {
         $defaults = [
@@ -20,17 +23,18 @@ class MerchandisingSeeder extends Seeder
         ];
 
         foreach ($defaults as $slug => [$titleIt, $titleEn]) {
-            MerchandisingSection::query()->firstOrCreate(
-                ['slug' => $slug],
-                [
-                    'title_it' => $titleIt,
-                    'title_en' => $titleEn,
-                    'audience' => null,
-                    'max_items' => 12,
-                    'rules' => null,
-                    'is_active' => true,
-                ],
-            );
+            foreach ($this->audiences as $audience) {
+                MerchandisingSection::query()->firstOrCreate(
+                    ['slug' => $slug, 'audience' => $audience],
+                    [
+                        'title_it' => $titleIt,
+                        'title_en' => $titleEn,
+                        'max_items' => 12,
+                        'rules' => null,
+                        'is_active' => true,
+                    ],
+                );
+            }
         }
 
         $products = Product::query()->published()->pluck('id')->all();
@@ -59,4 +63,4 @@ class MerchandisingSeeder extends Seeder
             }
         }
     }
-}
+};

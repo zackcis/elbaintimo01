@@ -22,8 +22,37 @@ class MerchandisingAdminTest extends TestCase
         $staff = User::factory()->create(['role' => 'staff']);
 
         $this->actingAs($staff)
-            ->get(route('merchandising.index'))
-            ->assertOk();
+            ->get(route('merchandising.index', ['audience' => 'women']))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('merchandising/index')
+                ->where('audience', 'women')
+                ->has('sections', 4)
+            );
+    }
+
+    public function test_ensure_creates_twelve_sections(): void
+    {
+        $staff = User::factory()->create(['role' => 'staff']);
+
+        $this->actingAs($staff)->get(route('merchandising.index'));
+
+        $this->assertSame(
+            12,
+            MerchandisingSection::query()->count()
+        );
+        $this->assertSame(
+            4,
+            MerchandisingSection::query()->where('audience', 'women')->count()
+        );
+        $this->assertSame(
+            4,
+            MerchandisingSection::query()->where('audience', 'men')->count()
+        );
+        $this->assertSame(
+            4,
+            MerchandisingSection::query()->where('audience', 'kids')->count()
+        );
     }
 
     public function test_staff_can_update_sections_with_published_products_only(): void
@@ -34,16 +63,18 @@ class MerchandisingAdminTest extends TestCase
 
         $this->actingAs($staff)
             ->put(route('merchandising.update'), [
+                'audience' => 'women',
                 'sections' => $this->sectionPayload([
                     MerchandisingShelf::BestSellers->value => [
                         ['product_id' => $published->id, 'mode' => 'include'],
                     ],
                 ]),
             ])
-            ->assertRedirect(route('merchandising.index'));
+            ->assertRedirect(route('merchandising.index', ['audience' => 'women']));
 
         $section = MerchandisingSection::query()
             ->where('slug', MerchandisingShelf::BestSellers->value)
+            ->where('audience', 'women')
             ->firstOrFail();
 
         $this->assertDatabaseHas('merchandising_pins', [
@@ -54,20 +85,69 @@ class MerchandisingAdminTest extends TestCase
         ]);
 
         $this->actingAs($staff)
-            ->from(route('merchandising.index'))
+            ->from(route('merchandising.index', ['audience' => 'women']))
             ->put(route('merchandising.update'), [
+                'audience' => 'women',
                 'sections' => $this->sectionPayload([
                     MerchandisingShelf::BestSellers->value => [
                         ['product_id' => $draft->id, 'mode' => 'include'],
                     ],
                 ]),
             ])
-            ->assertRedirect(route('merchandising.index'))
+            ->assertRedirect(route('merchandising.index', ['audience' => 'women']))
             ->assertSessionHasNoErrors();
 
         // Draft pins are dropped instead of blocking the whole save.
         $this->assertDatabaseMissing('merchandising_pins', [
             'product_id' => $draft->id,
+        ]);
+    }
+
+    public function test_saving_women_shelves_does_not_change_men_shelves(): void
+    {
+        $staff = User::factory()->create(['role' => 'staff']);
+
+        $menSection = MerchandisingSection::query()
+            ->where('slug', MerchandisingShelf::BestSellers->value)
+            ->where('audience', 'men')
+            ->firstOrFail();
+        $menSection->update([
+            'title_it' => 'Uomo Best',
+            'title_en' => 'Men Best',
+            'max_items' => 7,
+        ]);
+
+        $payload = $this->sectionPayload([]);
+        foreach ($payload as &$section) {
+            if ($section['slug'] === MerchandisingShelf::BestSellers->value) {
+                $section['title_it'] = 'Donna Best';
+                $section['title_en'] = 'Women Best';
+                $section['max_items'] = 10;
+            }
+        }
+        unset($section);
+
+        $this->actingAs($staff)
+            ->put(route('merchandising.update'), [
+                'audience' => 'women',
+                'sections' => $payload,
+            ])
+            ->assertRedirect(route('merchandising.index', ['audience' => 'women']));
+
+        $this->assertDatabaseHas('merchandising_sections', [
+            'slug' => MerchandisingShelf::BestSellers->value,
+            'audience' => 'women',
+            'title_it' => 'Donna Best',
+            'title_en' => 'Women Best',
+            'max_items' => 10,
+        ]);
+
+        $this->assertDatabaseHas('merchandising_sections', [
+            'slug' => MerchandisingShelf::BestSellers->value,
+            'audience' => 'men',
+            'title_it' => 'Uomo Best',
+            'title_en' => 'Men Best',
+            'max_items' => 7,
         ]);
     }
 
@@ -80,7 +160,6 @@ class MerchandisingAdminTest extends TestCase
             if ($section['slug'] === MerchandisingShelf::BestSellers->value) {
                 $section['title_it'] = 'Novità della ana';
                 $section['title_en'] = 'News of the week';
-                $section['audience'] = 'men';
                 $section['max_items'] = 10;
                 $section['rules'] = [
                     'brand_ids' => [],
@@ -93,15 +172,18 @@ class MerchandisingAdminTest extends TestCase
         unset($section);
 
         $this->actingAs($staff)
-            ->put(route('merchandising.update'), ['sections' => $payload])
-            ->assertRedirect(route('merchandising.index'))
+            ->put(route('merchandising.update'), [
+                'audience' => 'men',
+                'sections' => $payload,
+            ])
+            ->assertRedirect(route('merchandising.index', ['audience' => 'men']))
             ->assertSessionHas('success');
 
         $this->assertDatabaseHas('merchandising_sections', [
             'slug' => MerchandisingShelf::BestSellers->value,
+            'audience' => 'men',
             'title_it' => 'Novità della ana',
             'title_en' => 'News of the week',
-            'audience' => 'men',
             'max_items' => 10,
         ]);
     }
@@ -112,7 +194,10 @@ class MerchandisingAdminTest extends TestCase
         $product = $this->makeProduct(true, 'Shelf Item');
 
         $section = MerchandisingSection::query()->firstOrCreate(
-            ['slug' => MerchandisingShelf::Featured->value],
+            [
+                'slug' => MerchandisingShelf::Featured->value,
+                'audience' => 'women',
+            ],
             [
                 'title_it' => 'In evidenza',
                 'title_en' => 'Featured',
@@ -169,7 +254,6 @@ class MerchandisingAdminTest extends TestCase
                 'slug' => $slug,
                 'title_it' => $slug,
                 'title_en' => $slug,
-                'audience' => null,
                 'max_items' => 12,
                 'is_active' => true,
                 'rules' => [

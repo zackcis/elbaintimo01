@@ -17,6 +17,7 @@ class MerchandisingSectionResolver
     {
         $max = max(1, (int) $section->max_items);
         $rules = is_array($section->rules) ? $section->rules : [];
+        $audienceCategoryIds = Category::idsForAudienceTree((string) $section->audience);
 
         $pins = $section->relationLoaded('pins')
             ? $section->pins
@@ -40,7 +41,7 @@ class MerchandisingSectionResolver
             ->values()
             ->all();
 
-        $includeProducts = $this->loadPublishedProducts($includeIds)
+        $includeProducts = $this->loadPublishedProducts($includeIds, $audienceCategoryIds)
             ->keyBy('id');
 
         $ordered = collect();
@@ -65,7 +66,7 @@ class MerchandisingSectionResolver
         $already = $ordered->pluck('id')->all();
         $needed = $max - $ordered->count();
 
-        $ruleMatches = $this->ruleQuery($rules)
+        $ruleMatches = $this->ruleQuery($rules, $audienceCategoryIds)
             ->when($excludeIds !== [], fn (Builder $q) => $q->whereNotIn('id', $excludeIds))
             ->when($already !== [], fn (Builder $q) => $q->whereNotIn('id', $already))
             ->with([
@@ -84,17 +85,19 @@ class MerchandisingSectionResolver
 
     /**
      * @param  list<int>  $ids
+     * @param  list<int>  $audienceCategoryIds
      * @return Collection<int, Product>
      */
-    private function loadPublishedProducts(array $ids): Collection
+    private function loadPublishedProducts(array $ids, array $audienceCategoryIds): Collection
     {
-        if ($ids === []) {
+        if ($ids === [] || $audienceCategoryIds === []) {
             return collect();
         }
 
         return Product::query()
             ->published()
             ->whereIn('id', $ids)
+            ->whereIn('category_id', $audienceCategoryIds)
             ->with([
                 'translations',
                 'category.translations',
@@ -123,10 +126,17 @@ class MerchandisingSectionResolver
 
     /**
      * @param  array<string, mixed>  $rules
+     * @param  list<int>  $audienceCategoryIds
      */
-    private function ruleQuery(array $rules): Builder
+    private function ruleQuery(array $rules, array $audienceCategoryIds): Builder
     {
         $query = Product::query()->published();
+
+        if ($audienceCategoryIds === []) {
+            return $query->whereRaw('0 = 1');
+        }
+
+        $query->whereIn('category_id', $audienceCategoryIds);
 
         $brandIds = array_values(array_unique(array_filter(array_map('intval', $rules['brand_ids'] ?? []))));
         if ($brandIds !== []) {
@@ -160,4 +170,4 @@ class MerchandisingSectionResolver
 
         return $query;
     }
-}
+};

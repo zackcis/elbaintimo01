@@ -9,10 +9,17 @@ import { dashboard } from '@/routes';
 import { type BreadcrumbItem } from '@/types';
 import { Head, router, usePage } from '@inertiajs/react';
 import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react';
-import { FormEvent, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 
 type ShelfKey = 'best_sellers' | 'new_arrivals' | 'featured' | 'special_offers';
 type PinMode = 'include' | 'exclude';
+type Audience = 'women' | 'men' | 'kids';
+
+const AUDIENCE_TABS: { id: Audience; it: string; en: string }[] = [
+    { id: 'women', it: 'Donna', en: 'Women' },
+    { id: 'men', it: 'Uomo', en: 'Men' },
+    { id: 'kids', it: 'Bambini', en: 'Kids' },
+];
 
 interface PinProduct {
     product_id: number;
@@ -87,8 +94,13 @@ function resolveShelfPreview(
     section: SectionState,
     publishedProducts: PublishedProduct[],
     categories: Option[],
+    audienceCategoryIds: number[],
 ): PublishedProduct[] {
     const max = Math.max(1, Number(section.max_items) || 12);
+    const audienceSet = new Set(audienceCategoryIds.map(Number));
+    const inAudience = (p: PublishedProduct) =>
+        audienceSet.size > 0 && audienceSet.has(Number(p.category_id));
+
     const excludeIds = new Set(
         section.pins.filter((p) => p.mode === 'exclude').map((p) => p.product_id),
     );
@@ -102,7 +114,7 @@ function resolveShelfPreview(
             continue;
         }
         const product = byId.get(pin.product_id);
-        if (!product) {
+        if (!product || !inAudience(product)) {
             continue;
         }
         ordered.push(product);
@@ -128,7 +140,7 @@ function resolveShelfPreview(
     }
 
     const matches = publishedProducts.filter((p) => {
-        if (seen.has(p.id) || excludeIds.has(p.id)) {
+        if (!inAudience(p) || seen.has(p.id) || excludeIds.has(p.id)) {
             return false;
         }
         if (brandIds.length > 0 && !brandIds.includes(Number(p.brand_id))) {
@@ -162,6 +174,9 @@ interface MerchandisingPageProps {
     publishedProducts: PublishedProduct[];
     brands: Option[];
     categories: Option[];
+    audience: Audience;
+    audienceCategoryIds: number[];
+    audiences: Audience[];
 }
 
 function hydrateSections(initialSections: SectionState[]): SectionState[] {
@@ -182,6 +197,8 @@ export default function MerchandisingIndex({
     publishedProducts,
     brands,
     categories,
+    audience,
+    audienceCategoryIds,
 }: MerchandisingPageProps) {
     const { t, locale } = useUi();
     const page = usePage();
@@ -203,6 +220,27 @@ export default function MerchandisingIndex({
     const [addSelection, setAddSelection] = useState<Record<string, string>>({});
     const [addMode, setAddMode] = useState<Record<string, PinMode>>({});
 
+    useEffect(() => {
+        setSections(hydrateSections(initialSections));
+        setAddSelection({});
+        setAddMode({});
+    }, [initialSections, audience]);
+
+    const audienceCategorySet = useMemo(
+        () => new Set(audienceCategoryIds.map(Number)),
+        [audienceCategoryIds],
+    );
+
+    const audienceProducts = useMemo(
+        () =>
+            publishedProducts.filter(
+                (p) =>
+                    audienceCategorySet.size > 0 &&
+                    audienceCategorySet.has(Number(p.category_id)),
+            ),
+        [publishedProducts, audienceCategorySet],
+    );
+
     const productById = useMemo(() => {
         const map = new Map<number, PublishedProduct>();
         for (const p of publishedProducts) {
@@ -222,10 +260,23 @@ export default function MerchandisingIndex({
         return map;
     }, [publishedProducts, sections]);
 
+    const editingLabel = t(`merchandising.editing_${audience}`);
+
     const breadcrumbs: BreadcrumbItem[] = [
         { title: t('breadcrumb.dashboard'), href: dashboard().url },
         { title: t('nav.merchandising'), href: '#' },
     ];
+
+    const switchAudience = (next: Audience) => {
+        if (next === audience) {
+            return;
+        }
+        router.get(
+            '/' + locale + '/merchandising',
+            { audience: next },
+            { preserveScroll: true, preserveState: false },
+        );
+    };
 
     const updateSection = (slug: string, patch: Partial<SectionState>) => {
         setSections((prev) =>
@@ -332,6 +383,7 @@ export default function MerchandisingIndex({
         router.put(
             '/' + locale + '/merchandising',
             {
+                audience,
                 sections: sections.map((s) => {
                     const rules: Record<string, unknown> = {
                         brand_ids: s.rules.brand_ids.map(Number),
@@ -346,7 +398,6 @@ export default function MerchandisingIndex({
                         slug: s.slug,
                         title_it: s.title_it,
                         title_en: s.title_en,
-                        audience: s.audience || null,
                         max_items: Number(s.max_items) || 12,
                         is_active: s.is_active ? 1 : 0,
                         rules,
@@ -372,23 +423,46 @@ export default function MerchandisingIndex({
             <Head title={`${t('nav.merchandising')} - HARIMI`} />
 
             <div className="flex flex-col gap-6 p-4 md:p-6">
-                <div className="flex flex-wrap items-end justify-between gap-3">
-                    <div>
-                        <h1 className="font-serif text-2xl font-semibold text-burgundy">
-                            {t('nav.merchandising')}
-                        </h1>
-                        <p className="mt-1 text-sm text-muted-foreground">
-                            {t('merchandising.subtitle')}
-                        </p>
+                <div className="sticky top-0 z-10 -mx-4 border-b border-border/70 bg-background/95 px-4 py-3 backdrop-blur md:-mx-6 md:px-6">
+                    <div className="flex flex-wrap items-end justify-between gap-3">
+                        <div>
+                            <h1 className="font-serif text-2xl font-semibold text-burgundy">
+                                {t('nav.merchandising')}
+                            </h1>
+                            <p className="mt-1 text-sm text-muted-foreground">
+                                {editingLabel}
+                            </p>
+                        </div>
+                        <Button
+                            type="submit"
+                            form="merchandising-form"
+                            disabled={saving}
+                            className="bg-burgundy hover:bg-burgundy-dark"
+                        >
+                            {saving ? '…' : t('common.save')}
+                        </Button>
                     </div>
-                    <Button
-                        type="submit"
-                        form="merchandising-form"
-                        disabled={saving}
-                        className="bg-burgundy hover:bg-burgundy-dark"
-                    >
-                        {saving ? '…' : t('common.save')}
-                    </Button>
+                    <div className="mt-3 flex flex-wrap gap-2" role="tablist" aria-label="Audience">
+                        {AUDIENCE_TABS.map((tab) => {
+                            const active = tab.id === audience;
+                            return (
+                                <button
+                                    key={tab.id}
+                                    type="button"
+                                    role="tab"
+                                    aria-selected={active}
+                                    onClick={() => switchAudience(tab.id)}
+                                    className={
+                                        active
+                                            ? 'rounded-md bg-burgundy px-4 py-2 text-sm font-medium text-white'
+                                            : 'rounded-md border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-beige/60'
+                                    }
+                                >
+                                    {locale === 'en' ? tab.en : tab.it}
+                                </button>
+                            );
+                        })}
+                    </div>
                 </div>
 
                 {flash?.success && (
@@ -418,11 +492,12 @@ export default function MerchandisingIndex({
                 <form id="merchandising-form" onSubmit={handleSubmit} className="space-y-6">
                     {sections.map((section) => {
                         const pinnedIds = new Set(section.pins.map((p) => p.product_id));
-                        const available = publishedProducts.filter((p) => !pinnedIds.has(p.id));
+                        const available = audienceProducts.filter((p) => !pinnedIds.has(p.id));
                         const preview = resolveShelfPreview(
                             section,
                             publishedProducts,
                             categories,
+                            audienceCategoryIds,
                         );
 
                         return (
@@ -449,7 +524,7 @@ export default function MerchandisingIndex({
                                         </label>
                                     </div>
 
-                                    <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+                                    <div className="grid gap-3 md:grid-cols-3">
                                         <div className="grid gap-1.5">
                                             <Label className="text-xs uppercase tracking-wide text-muted-foreground">
                                                 Title IT
@@ -475,25 +550,6 @@ export default function MerchandisingIndex({
                                                     })
                                                 }
                                             />
-                                        </div>
-                                        <div className="grid gap-1.5">
-                                            <Label className="text-xs uppercase tracking-wide text-muted-foreground">
-                                                Audience
-                                            </Label>
-                                            <select
-                                                value={section.audience ?? ''}
-                                                onChange={(e) =>
-                                                    updateSection(section.slug, {
-                                                        audience: e.target.value || null,
-                                                    })
-                                                }
-                                                className="flex h-9 w-full rounded-md border border-gray-300 bg-transparent px-3 py-2 text-sm"
-                                            >
-                                                <option value="">All</option>
-                                                <option value="women">Women</option>
-                                                <option value="men">Men</option>
-                                                <option value="kids">Kids</option>
-                                            </select>
                                         </div>
                                         <div className="grid gap-1.5">
                                             <Label className="text-xs uppercase tracking-wide text-muted-foreground">

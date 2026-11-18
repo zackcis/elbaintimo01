@@ -50,13 +50,29 @@ class StorefrontCatalogApiTest extends TestCase
             ->assertJsonPath('data.title', 'Reggiseno Aurora');
     }
 
+    public function test_merchandising_requires_audience(): void
+    {
+        $this->getJson('/api/v1/merchandising?locale=it')
+            ->assertStatus(422);
+
+        $this->getJson('/api/v1/merchandising/best_sellers?locale=it')
+            ->assertStatus(422);
+
+        $this->getJson('/api/v1/merchandising?locale=it&audience=aliens')
+            ->assertStatus(422);
+    }
+
     public function test_merchandising_shelf_returns_ordered_published_products(): void
     {
-        $first = $this->seedCatalogProduct(published: true, title: 'First');
-        $second = $this->seedCatalogProduct(published: true, title: 'Second');
+        $women = $this->ensureAudienceRoot('women');
+        $first = $this->seedCatalogProduct(published: true, title: 'First', categoryId: $women->id);
+        $second = $this->seedCatalogProduct(published: true, title: 'Second', categoryId: $women->id);
 
         $section = MerchandisingSection::query()->firstOrCreate(
-            ['slug' => MerchandisingShelf::BestSellers->value],
+            [
+                'slug' => MerchandisingShelf::BestSellers->value,
+                'audience' => 'women',
+            ],
             [
                 'title_it' => 'Best seller',
                 'title_en' => 'Best sellers',
@@ -78,7 +94,7 @@ class StorefrontCatalogApiTest extends TestCase
             'mode' => 'include',
         ]);
 
-        $response = $this->getJson('/api/v1/merchandising/best_sellers?locale=it');
+        $response = $this->getJson('/api/v1/merchandising/best_sellers?locale=it&audience=women');
 
         $response->assertOk();
         $this->assertSame(
@@ -87,18 +103,127 @@ class StorefrontCatalogApiTest extends TestCase
         );
     }
 
+    public function test_merchandising_women_and_men_return_different_pins(): void
+    {
+        $women = $this->ensureAudienceRoot('women');
+        $men = $this->ensureAudienceRoot('men');
+        $womenProduct = $this->seedCatalogProduct(published: true, title: 'Women Only', categoryId: $women->id);
+        $menProduct = $this->seedCatalogProduct(published: true, title: 'Men Only', categoryId: $men->id);
+
+        $womenSection = MerchandisingSection::query()->firstOrCreate(
+            [
+                'slug' => MerchandisingShelf::NewArrivals->value,
+                'audience' => 'women',
+            ],
+            [
+                'title_it' => 'Novità',
+                'title_en' => 'New arrivals',
+                'max_items' => 12,
+                'is_active' => true,
+            ],
+        );
+        $menSection = MerchandisingSection::query()->firstOrCreate(
+            [
+                'slug' => MerchandisingShelf::NewArrivals->value,
+                'audience' => 'men',
+            ],
+            [
+                'title_it' => 'Novità',
+                'title_en' => 'New arrivals',
+                'max_items' => 12,
+                'is_active' => true,
+            ],
+        );
+
+        MerchandisingPin::create([
+            'section_id' => $womenSection->id,
+            'product_id' => $womenProduct->id,
+            'position' => 0,
+            'mode' => 'include',
+        ]);
+        MerchandisingPin::create([
+            'section_id' => $menSection->id,
+            'product_id' => $menProduct->id,
+            'position' => 0,
+            'mode' => 'include',
+        ]);
+
+        $womenTitles = collect(
+            $this->getJson('/api/v1/merchandising/new_arrivals?locale=it&audience=women')->json('data')
+        )->pluck('title');
+        $menTitles = collect(
+            $this->getJson('/api/v1/merchandising/new_arrivals?locale=it&audience=men')->json('data')
+        )->pluck('title');
+
+        $this->assertTrue($womenTitles->contains('Women Only'));
+        $this->assertFalse($womenTitles->contains('Men Only'));
+        $this->assertTrue($menTitles->contains('Men Only'));
+        $this->assertFalse($menTitles->contains('Women Only'));
+    }
+
+    public function test_merchandising_ignores_wrong_audience_include_pins_and_rules(): void
+    {
+        $women = $this->ensureAudienceRoot('women');
+        $men = $this->ensureAudienceRoot('men');
+        $womenProduct = $this->seedCatalogProduct(published: true, title: 'Women Pin', categoryId: $women->id);
+        $menProduct = $this->seedCatalogProduct(published: true, title: 'Men Leak', categoryId: $men->id);
+
+        $section = MerchandisingSection::query()->firstOrCreate(
+            [
+                'slug' => MerchandisingShelf::Featured->value,
+                'audience' => 'women',
+            ],
+            [
+                'title_it' => 'In evidenza',
+                'title_en' => 'Featured',
+                'max_items' => 12,
+                'is_active' => true,
+            ],
+        );
+
+        $section->update([
+            'rules' => [
+                'brand_ids' => [(int) $menProduct->brand_id],
+            ],
+        ]);
+
+        MerchandisingPin::create([
+            'section_id' => $section->id,
+            'product_id' => $womenProduct->id,
+            'position' => 0,
+            'mode' => 'include',
+        ]);
+        MerchandisingPin::create([
+            'section_id' => $section->id,
+            'product_id' => $menProduct->id,
+            'position' => 1,
+            'mode' => 'include',
+        ]);
+
+        $titles = collect(
+            $this->getJson('/api/v1/merchandising/featured?locale=it&audience=women')->json('data')
+        )->pluck('title');
+
+        $this->assertTrue($titles->contains('Women Pin'));
+        $this->assertFalse($titles->contains('Men Leak'));
+    }
+
     public function test_merchandising_shelf_applies_brand_rules_and_exclude_pins(): void
     {
-        $nikeProduct = $this->seedCatalogProduct(published: true, title: 'Nike Sock');
-        $otherProduct = $this->seedCatalogProduct(published: true, title: 'Other Sock');
-        $pinned = $this->seedCatalogProduct(published: true, title: 'Pinned Featured');
-        $excludedNike = $this->seedCatalogProduct(published: true, title: 'Nike Excluded');
+        $women = $this->ensureAudienceRoot('women');
+        $nikeProduct = $this->seedCatalogProduct(published: true, title: 'Nike Sock', categoryId: $women->id);
+        $otherProduct = $this->seedCatalogProduct(published: true, title: 'Other Sock', categoryId: $women->id);
+        $pinned = $this->seedCatalogProduct(published: true, title: 'Pinned Featured', categoryId: $women->id);
+        $excludedNike = $this->seedCatalogProduct(published: true, title: 'Nike Excluded', categoryId: $women->id);
 
         // Put both Nike products on the same brand.
         $excludedNike->update(['brand_id' => $nikeProduct->brand_id]);
 
         $section = MerchandisingSection::query()->firstOrCreate(
-            ['slug' => MerchandisingShelf::Featured->value],
+            [
+                'slug' => MerchandisingShelf::Featured->value,
+                'audience' => 'women',
+            ],
             [
                 'title_it' => 'In evidenza',
                 'title_en' => 'Featured',
@@ -127,7 +252,7 @@ class StorefrontCatalogApiTest extends TestCase
         ]);
 
         $titles = collect(
-            $this->getJson('/api/v1/merchandising/featured?locale=it')->json('data')
+            $this->getJson('/api/v1/merchandising/featured?locale=it&audience=women')->json('data')
         )->pluck('title');
 
         $this->assertSame('Pinned Featured', $titles->first());
@@ -351,15 +476,40 @@ class StorefrontCatalogApiTest extends TestCase
         $this->assertTrue($products->contains(fn ($p) => $p['title'] === 'Slip SearchTest' && $p['audience'] === 'women'));
     }
 
-    private function seedCatalogProduct(bool $published, string $title): Product
+    private function ensureAudienceRoot(string $audience): Category
     {
-        $category = Category::create(['parent_id' => null]);
+        $existingId = \App\Models\CategoryTranslation::query()
+            ->where('slug', $audience)
+            ->value('category_id');
+
+        if ($existingId !== null) {
+            return Category::query()->findOrFail((int) $existingId);
+        }
+
+        $category = Category::create(['parent_id' => null, 'position' => 0]);
         foreach (['it', 'en'] as $loc) {
             $category->translations()->create([
                 'locale' => $loc,
-                'slug' => UniqueSlug::make('category-'.$title, 'category_translations', $loc),
-                'name' => 'Category '.$title,
+                'slug' => $audience,
+                'name' => ucfirst($audience),
             ]);
+        }
+
+        return $category;
+    }
+
+    private function seedCatalogProduct(bool $published, string $title, ?int $categoryId = null): Product
+    {
+        if ($categoryId === null) {
+            $category = Category::create(['parent_id' => null]);
+            foreach (['it', 'en'] as $loc) {
+                $category->translations()->create([
+                    'locale' => $loc,
+                    'slug' => UniqueSlug::make('category-'.$title, 'category_translations', $loc),
+                    'name' => 'Category '.$title,
+                ]);
+            }
+            $categoryId = $category->id;
         }
 
         $brand = Brand::create(['logo' => null]);
@@ -372,7 +522,7 @@ class StorefrontCatalogApiTest extends TestCase
         }
 
         $product = Product::create([
-            'category_id' => $category->id,
+            'category_id' => $categoryId,
             'brand_id' => $brand->id,
             'tissu' => 'Cotone',
             'is_published' => $published,

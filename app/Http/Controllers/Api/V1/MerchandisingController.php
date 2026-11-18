@@ -13,6 +13,9 @@ use Illuminate\Validation\Rule;
 
 class MerchandisingController extends Controller
 {
+    /** @var list<string> */
+    private const AUDIENCES = ['women', 'men', 'kids'];
+
     public function __construct(
         private readonly MerchandisingSectionResolver $resolver,
     ) {}
@@ -20,11 +23,12 @@ class MerchandisingController extends Controller
     public function index(Request $request): JsonResponse
     {
         $locale = (string) $request->attributes->get('storefront_locale');
+        $audience = $this->requireAudience($request);
         $payload = [];
         $metaSections = [];
 
         foreach (MerchandisingShelf::values() as $slug) {
-            $section = $this->sectionForSlug($slug);
+            $section = $this->sectionForSlug($slug, $audience);
             $products = $section && $section->is_active
                 ? $this->resolver->resolve($section)
                 : collect();
@@ -42,6 +46,7 @@ class MerchandisingController extends Controller
             'data' => $payload,
             'meta' => [
                 'locale' => $locale,
+                'audience' => $audience,
                 'sections' => $metaSections,
             ],
         ]);
@@ -50,13 +55,14 @@ class MerchandisingController extends Controller
     public function show(Request $request, string $shelf): JsonResponse
     {
         $locale = (string) $request->attributes->get('storefront_locale');
+        $audience = $this->requireAudience($request);
 
         $request->merge(['shelf' => $shelf]);
         $request->validate([
             'shelf' => ['required', Rule::in(MerchandisingShelf::values())],
         ]);
 
-        $section = $this->sectionForSlug($shelf);
+        $section = $this->sectionForSlug($shelf, $audience);
         $products = $section && $section->is_active
             ? $this->resolver->resolve($section)
             : collect();
@@ -65,16 +71,27 @@ class MerchandisingController extends Controller
             'data' => ProductCardResource::collection($products)->toArray($request),
             'meta' => [
                 'locale' => $locale,
+                'audience' => $audience,
                 'shelf' => $shelf,
                 'title' => $section?->titleForLocale($locale),
             ],
         ]);
     }
 
-    private function sectionForSlug(string $slug): ?MerchandisingSection
+    private function requireAudience(Request $request): string
+    {
+        $validated = $request->validate([
+            'audience' => ['required', Rule::in(self::AUDIENCES)],
+        ]);
+
+        return $validated['audience'];
+    }
+
+    private function sectionForSlug(string $slug, string $audience): ?MerchandisingSection
     {
         return MerchandisingSection::query()
             ->where('slug', $slug)
+            ->where('audience', $audience)
             ->with([
                 'pins' => fn ($q) => $q->orderBy('position')->orderBy('id'),
             ])

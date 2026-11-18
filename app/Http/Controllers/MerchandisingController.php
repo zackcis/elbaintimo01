@@ -20,13 +20,19 @@ class MerchandisingController extends Controller
 {
     use LogsActivity;
 
-    public function index(): Response
+    /** @var list<string> */
+    private const AUDIENCES = ['women', 'men', 'kids'];
+
+    public function index(Request $request): Response
     {
         $this->ensureSectionsExist();
 
+        $audience = $this->resolveAudience($request->query('audience'));
         $order = array_flip(MerchandisingShelf::values());
+        $audienceCategoryIds = Category::idsForAudienceTree($audience);
 
         $sections = MerchandisingSection::query()
+            ->where('audience', $audience)
             ->whereIn('slug', MerchandisingShelf::values())
             ->with([
                 'pins' => fn ($q) => $q->orderBy('position')->orderBy('id'),
@@ -113,21 +119,25 @@ class MerchandisingController extends Controller
             ->values()
             ->all();
 
+        $audienceCategorySet = array_flip($audienceCategoryIds);
         $parentById = Category::query()->pluck('parent_id', 'id');
-        $categories = array_map(
-            static function (array $opt) use ($parentById): array {
-                $id = (int) $opt['id'];
+        $categories = array_values(array_filter(
+            array_map(
+                static function (array $opt) use ($parentById): array {
+                    $id = (int) $opt['id'];
 
-                return [
-                    'id' => $id,
-                    'label' => $opt['label'] ?? '',
-                    'parent_id' => isset($parentById[$id]) && $parentById[$id] !== null
-                        ? (int) $parentById[$id]
-                        : null,
-                ];
-            },
-            Category::parentSelectOptions()
-        );
+                    return [
+                        'id' => $id,
+                        'label' => $opt['label'] ?? '',
+                        'parent_id' => isset($parentById[$id]) && $parentById[$id] !== null
+                            ? (int) $parentById[$id]
+                            : null,
+                    ];
+                },
+                Category::parentSelectOptions()
+            ),
+            static fn (array $opt): bool => isset($audienceCategorySet[(int) $opt['id']])
+        ));
 
         return Inertia::render('merchandising/index', [
             'sections' => $sections,
@@ -135,6 +145,9 @@ class MerchandisingController extends Controller
             'publishedProducts' => $publishedProducts,
             'brands' => $brands,
             'categories' => $categories,
+            'audience' => $audience,
+            'audienceCategoryIds' => $audienceCategoryIds,
+            'audiences' => self::AUDIENCES,
         ]);
     }
 
@@ -147,11 +160,11 @@ class MerchandisingController extends Controller
         ]);
 
         $validated = $request->validate([
+            'audience' => ['required', Rule::in(self::AUDIENCES)],
             'sections' => ['required', 'array'],
             'sections.*.slug' => ['required', 'string', Rule::in(MerchandisingShelf::values())],
             'sections.*.title_it' => ['required', 'string', 'max:255'],
             'sections.*.title_en' => ['required', 'string', 'max:255'],
-            'sections.*.audience' => ['nullable', 'in:women,men,kids'],
             'sections.*.max_items' => ['required', 'integer', 'min:1', 'max:48'],
             'sections.*.is_active' => ['required', 'boolean'],
             'sections.*.rules' => ['nullable', 'array'],
@@ -166,6 +179,7 @@ class MerchandisingController extends Controller
             'sections.*.pins.*.mode' => ['required', 'in:include,exclude'],
         ]);
 
+        $audience = $validated['audience'];
         $incoming = collect($validated['sections'])->keyBy('slug');
 
         foreach (MerchandisingShelf::values() as $slug) {
@@ -198,11 +212,14 @@ class MerchandisingController extends Controller
                 ->all();
         $publishedSet = array_flip($publishedProductIds);
 
-        DB::transaction(function () use ($incoming, $validBrandSet, $validCategorySet, $publishedSet): void {
+        DB::transaction(function () use ($incoming, $validBrandSet, $validCategorySet, $publishedSet, $audience): void {
             foreach (MerchandisingShelf::values() as $slug) {
                 /** @var array<string, mixed> $data */
                 $data = $incoming->get($slug);
-                $section = MerchandisingSection::query()->where('slug', $slug)->firstOrFail();
+                $section = MerchandisingSection::query()
+                    ->where('slug', $slug)
+                    ->where('audience', $audience)
+                    ->firstOrFail();
 
                 $brandIds = array_values(array_unique(array_filter(
                     array_map('intval', $data['rules']['brand_ids'] ?? []),
@@ -239,7 +256,6 @@ class MerchandisingController extends Controller
                 $section->update([
                     'title_it' => $data['title_it'],
                     'title_en' => $data['title_en'],
-                    'audience' => $data['audience'] ?: null,
                     'max_items' => (int) $data['max_items'],
                     'is_active' => (bool) $data['is_active'],
                     'rules' => $rules === [] ? null : $rules,
@@ -265,9 +281,9 @@ class MerchandisingController extends Controller
             }
         });
 
-        $this->logActivity('updated', 'Merchandising', null, 'Merchandising sections updated');
+        $this->logActivity('updated', 'Merchandising', null, 'Merchandising sections updated ('.$audience.')');
 
-        return redirect()->route('merchandising.index')
+        return redirect()->route('merchandising.index', ['audience' => $audience])
             ->with('success', 'Merchandising sections updated.');
     }
 
@@ -307,16 +323,10 @@ class MerchandisingController extends Controller
                 ];
             }
 
-            $audience = $section['audience'] ?? null;
-            if ($audience === '') {
-                $audience = null;
-            }
-
             $normalized[] = [
                 'slug' => (string) ($section['slug'] ?? ''),
                 'title_it' => trim((string) ($section['title_it'] ?? '')),
                 'title_en' => trim((string) ($section['title_en'] ?? '')),
-                'audience' => is_string($audience) ? $audience : null,
                 'max_items' => max(1, min(48, (int) ($section['max_items'] ?? 12))),
                 'is_active' => $this->asBool($section['is_active'] ?? true),
                 'rules' => [
@@ -355,6 +365,15 @@ class MerchandisingController extends Controller
         return $default;
     }
 
+    private function resolveAudience(mixed $raw): string
+    {
+        if (is_string($raw) && in_array($raw, self::AUDIENCES, true)) {
+            return $raw;
+        }
+
+        return 'women';
+    }
+
     private function ensureSectionsExist(): void
     {
         $defaults = [
@@ -365,17 +384,18 @@ class MerchandisingController extends Controller
         ];
 
         foreach ($defaults as $slug => [$titleIt, $titleEn]) {
-            MerchandisingSection::query()->firstOrCreate(
-                ['slug' => $slug],
-                [
-                    'title_it' => $titleIt,
-                    'title_en' => $titleEn,
-                    'audience' => null,
-                    'max_items' => 12,
-                    'rules' => null,
-                    'is_active' => true,
-                ],
-            );
+            foreach (self::AUDIENCES as $audience) {
+                MerchandisingSection::query()->firstOrCreate(
+                    ['slug' => $slug, 'audience' => $audience],
+                    [
+                        'title_it' => $titleIt,
+                        'title_en' => $titleEn,
+                        'max_items' => 12,
+                        'rules' => null,
+                        'is_active' => true,
+                    ],
+                );
+            }
         }
     }
 }

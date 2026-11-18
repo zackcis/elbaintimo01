@@ -177,6 +177,33 @@ class Category extends Model
     }
 
     /**
+     * Root category (slug women|men|kids) plus all descendants.
+     *
+     * @return list<int>
+     */
+    public static function idsForAudienceTree(string $audience): array
+    {
+        if (! in_array($audience, ['women', 'men', 'kids'], true)) {
+            return [];
+        }
+
+        $rootId = CategoryTranslation::query()
+            ->where('slug', $audience)
+            ->value('category_id');
+
+        if ($rootId === null) {
+            return [];
+        }
+
+        $rootId = (int) $rootId;
+
+        return array_values(array_unique(array_merge(
+            [$rootId],
+            static::descendantIds($rootId),
+        )));
+    }
+
+    /**
      * @return list<array{id: int, label: string}>
      */
     public static function parentSelectOptions(?int $excludeCategoryId = null): array
