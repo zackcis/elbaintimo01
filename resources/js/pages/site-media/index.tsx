@@ -155,8 +155,7 @@ function DropZone({
                                 <Button
                                     type="button"
                                     size="sm"
-                                    variant="outline"
-                                    className="border-white/40 bg-white/10 text-white hover:bg-white hover:text-ink"
+                                    className="border-0 bg-white text-ink shadow-sm hover:bg-ivory"
                                     onClick={onClear}
                                 >
                                     <X className="mr-1.5 h-3.5 w-3.5" />

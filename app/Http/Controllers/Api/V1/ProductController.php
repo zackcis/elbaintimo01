@@ -163,7 +163,13 @@ class ProductController extends Controller
 
         if ($applyColor && ! empty($validated['color'])) {
             $color = $validated['color'];
-            $query->whereHas('variants', fn ($q) => $q->where('color', $color));
+            $query->whereHas('variants', function ($q) use ($color) {
+                $q->where(function ($inner) use ($color) {
+                    $inner->where('color_it', $color)
+                        ->orWhere('color_en', $color)
+                        ->orWhere('color', $color);
+                });
+            });
         }
 
         if ($applySize && ! empty($validated['size'])) {
@@ -177,14 +183,34 @@ class ProductController extends Controller
 
         if (! empty($validated['q'])) {
             $term = '%'.$validated['q'].'%';
-            $query->whereHas('translations', function ($q) use ($term, $locale, $fallback) {
-                $q->where(function ($inner) use ($term, $locale, $fallback) {
-                    $inner->where('locale', $locale)->where('title', 'like', $term);
-                    if ($locale !== $fallback) {
-                        $inner->orWhere(function ($or) use ($term, $fallback) {
-                            $or->where('locale', $fallback)->where('title', 'like', $term);
-                        });
-                    }
+            $query->where(function ($outer) use ($term, $locale, $fallback) {
+                $outer->whereHas('translations', function ($q) use ($term, $locale, $fallback) {
+                    $q->where(function ($inner) use ($term, $locale, $fallback) {
+                        $inner->where('locale', $locale)->where('title', 'like', $term);
+                        if ($locale !== $fallback) {
+                            $inner->orWhere(function ($or) use ($term, $fallback) {
+                                $or->where('locale', $fallback)->where('title', 'like', $term);
+                            });
+                        }
+                    });
+                })->orWhereHas('brand.translations', function ($q) use ($term, $locale, $fallback) {
+                    $q->where(function ($inner) use ($term, $locale, $fallback) {
+                        $inner->where('locale', $locale)->where('name', 'like', $term);
+                        if ($locale !== $fallback) {
+                            $inner->orWhere(function ($or) use ($term, $fallback) {
+                                $or->where('locale', $fallback)->where('name', 'like', $term);
+                            });
+                        }
+                    });
+                })->orWhereHas('category.translations', function ($q) use ($term, $locale, $fallback) {
+                    $q->where(function ($inner) use ($term, $locale, $fallback) {
+                        $inner->where('locale', $locale)->where('name', 'like', $term);
+                        if ($locale !== $fallback) {
+                            $inner->orWhere(function ($or) use ($term, $fallback) {
+                                $or->where('locale', $fallback)->where('name', 'like', $term);
+                            });
+                        }
+                    });
                 });
             });
         }
@@ -226,16 +252,15 @@ class ProductController extends Controller
         $colorRows = ProductVariant::query()
             ->whereIn('product_id', $colorProductIds)
             ->when($inStock, fn ($q) => $q->where('stock', '>', 0))
-            ->whereNotNull('color')
-            ->where('color', '!=', '')
-            ->get(['color', 'color_hex']);
+            ->get(['color', 'color_it', 'color_en', 'color_hex']);
 
         $colors = $colorRows
-            ->unique(fn ($v) => mb_strtolower((string) $v->color))
             ->map(fn ($v) => [
-                'name' => (string) $v->color,
+                'name' => $v->colorForLocale($locale),
                 'hex' => $v->color_hex,
             ])
+            ->filter(fn ($c) => filled($c['name']))
+            ->unique(fn ($c) => mb_strtolower((string) $c['name']))
             ->values()
             ->all();
 

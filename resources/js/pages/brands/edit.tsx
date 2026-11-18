@@ -11,7 +11,7 @@ import { index as brandsIndex, update as brandUpdate } from '@/routes/brands';
 import { type BreadcrumbItem } from '@/types';
 import { Head, router, usePage } from '@inertiajs/react';
 import { FormEvent, useState } from 'react';
-import { SingleImageUpload } from '@/components/image-upload';
+import { LOGO_ACCEPT, SingleImageUpload } from '@/components/image-upload';
 
 interface BrandTranslationRow {
     locale: string;
@@ -125,6 +125,9 @@ export default function EditBrand({ brand }: EditBrandProps) {
                                     onChange={setLogoFile}
                                     preview={brand.logo ? `/storage/${brand.logo}` : null}
                                     label={t('brands.logo_optional')}
+                                    accept={LOGO_ACCEPT}
+                                    hint="PNG or SVG preferred (transparent). Also JPG/WEBP, up to 5MB."
+                                    fit="contain"
                                 />
                                 <InputError message={errors.logo} />
                             </div>
@@ -144,6 +147,7 @@ export default function EditBrand({ brand }: EditBrandProps) {
                                             : null
                                     }
                                     label={t('brands.hero_optional')}
+                                    hint="Lifestyle photo — JPG, PNG, WEBP up to 5MB"
                                 />
                                 {brand.hero_path && !clearHero ? (
                                     <Button

@@ -19,6 +19,8 @@ class ProductVariant extends Model
         'product_id',
         'size',
         'color',
+        'color_it',
+        'color_en',
         'color_hex',
         'price',
         'compare_at_price',
@@ -36,6 +38,24 @@ class ProductVariant extends Model
             'price' => 'decimal:2',
             'compare_at_price' => 'decimal:2',
         ];
+    }
+
+    public function colorForLocale(string $locale): ?string
+    {
+        $preferred = $locale === 'en' ? $this->color_en : $this->color_it;
+        if (filled($preferred)) {
+            return (string) $preferred;
+        }
+
+        if (filled($this->color_it)) {
+            return (string) $this->color_it;
+        }
+
+        if (filled($this->color_en)) {
+            return (string) $this->color_en;
+        }
+
+        return filled($this->color) ? (string) $this->color : null;
     }
 
     /**

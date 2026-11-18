@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\V1\Checkout\StripeWebhookController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\MerchandisingController;
 use App\Http\Controllers\Api\V1\ProductController;
+use App\Http\Controllers\Api\V1\SearchController;
 use App\Http\Controllers\Api\V1\SiteMediaController;
 use App\Http\Middleware\SetStorefrontLocale;
 use Illuminate\Support\Facades\Route;
@@ -27,6 +28,8 @@ Route::prefix('v1')
 
         Route::get('products', [ProductController::class, 'index'])->name('api.v1.products.index');
         Route::get('products/{slug}', [ProductController::class, 'show'])->name('api.v1.products.show');
+
+        Route::get('search', SearchController::class)->name('api.v1.search');
 
         Route::get('merchandising', [MerchandisingController::class, 'index'])->name('api.v1.merchandising.index');
         Route::get('merchandising/{shelf}', [MerchandisingController::class, 'show'])->name('api.v1.merchandising.show');

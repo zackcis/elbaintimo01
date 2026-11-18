@@ -79,7 +79,7 @@ class MerchandisingController extends Controller
 
         $publishedProducts = Product::query()
             ->published()
-            ->with(['translations', 'images'])
+            ->with(['translations', 'images', 'variants'])
             ->latest('id')
             ->get()
             ->map(function (Product $product) {
@@ -90,6 +90,13 @@ class MerchandisingController extends Controller
                     'id' => $product->id,
                     'title' => $product->title,
                     'image_path' => $primary?->path,
+                    'brand_id' => $product->brand_id ? (int) $product->brand_id : null,
+                    'category_id' => $product->category_id ? (int) $product->category_id : null,
+                    'in_stock' => $product->variants->contains(fn ($v) => (int) $v->stock > 0),
+                    'on_sale' => $product->variants->contains(
+                        fn ($v) => $v->compare_at_price !== null
+                            && (float) $v->compare_at_price > (float) $v->price
+                    ),
                 ];
             })
             ->values()
@@ -106,7 +113,21 @@ class MerchandisingController extends Controller
             ->values()
             ->all();
 
-        $categories = Category::parentSelectOptions();
+        $parentById = Category::query()->pluck('parent_id', 'id');
+        $categories = array_map(
+            static function (array $opt) use ($parentById): array {
+                $id = (int) $opt['id'];
+
+                return [
+                    'id' => $id,
+                    'label' => $opt['label'] ?? '',
+                    'parent_id' => isset($parentById[$id]) && $parentById[$id] !== null
+                        ? (int) $parentById[$id]
+                        : null,
+                ];
+            },
+            Category::parentSelectOptions()
+        );
 
         return Inertia::render('merchandising/index', [
             'sections' => $sections,

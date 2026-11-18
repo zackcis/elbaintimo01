@@ -18,12 +18,26 @@ class ProductVariantFactory extends Factory
     public function definition(): array
     {
         $sizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL', null];
-        $colors = ['Black', 'White', 'Red', 'Blue', 'Green', 'Yellow', 'Pink', 'Purple', 'Gray', 'Brown', null];
+        $colors = [
+            ['Nero', 'Black'],
+            ['Bianco', 'White'],
+            ['Rosso', 'Red'],
+            ['Blu', 'Blue'],
+            ['Verde', 'Green'],
+            ['Giallo', 'Yellow'],
+            ['Rosa', 'Pink'],
+            ['Viola', 'Purple'],
+            ['Grigio', 'Gray'],
+            ['Marrone', 'Brown'],
+        ];
+        [$colorIt, $colorEn] = fake()->randomElement($colors);
 
         return [
             'product_id' => Product::factory(),
             'size' => fake()->randomElement($sizes),
-            'color' => fake()->randomElement($colors) ?? 'Sample',
+            'color' => $colorIt,
+            'color_it' => $colorIt,
+            'color_en' => $colorEn,
             'color_hex' => '#'.strtoupper(str_pad(dechex(fake()->numberBetween(0, 0xFFFFFF)), 6, '0', STR_PAD_LEFT)),
             'price' => fake()->randomFloat(2, 9.99, 999.99),
             'stock' => fake()->numberBetween(0, 100),

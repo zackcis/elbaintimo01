@@ -11,7 +11,7 @@ import { create as brandsCreate, index as brandsIndex, store as brandsStore } fr
 import { type BreadcrumbItem } from '@/types';
 import { Head, router, usePage } from '@inertiajs/react';
 import { FormEvent, useState } from 'react';
-import { SingleImageUpload } from '@/components/image-upload';
+import { LOGO_ACCEPT, SingleImageUpload } from '@/components/image-upload';
 
 export default function CreateBrand() {
     const { t } = useUi();
@@ -99,6 +99,9 @@ export default function CreateBrand() {
                                     value={logoFile}
                                     onChange={setLogoFile}
                                     label={t('brands.logo_optional')}
+                                    accept={LOGO_ACCEPT}
+                                    hint="PNG or SVG preferred (transparent). Also JPG/WEBP, up to 5MB."
+                                    fit="contain"
                                 />
                                 <InputError message={errors.logo} />
                             </div>
@@ -108,6 +111,7 @@ export default function CreateBrand() {
                                     value={heroFile}
                                     onChange={setHeroFile}
                                     label={t('brands.hero_optional')}
+                                    hint="Lifestyle photo — JPG, PNG, WEBP up to 5MB"
                                 />
                                 <InputError message={errors.hero} />
                             </div>

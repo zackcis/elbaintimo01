@@ -16,19 +16,19 @@ class ProductSeeder extends Seeder
     use ScansMediaFolder;
 
     /**
-     * @var list<array{string, string}>  [name, hex]
+     * @var list<array{string, string, string}>  [it, en, hex]
      */
     private array $colors = [
-        ['Nero', '#141414'],
-        ['Bianco', '#FFFFFF'],
-        ['Avorio', '#F7F3EC'],
-        ['Nude', '#C4A484'],
-        ['Rosa', '#E8B4B8'],
-        ['Bordeaux', '#6B1E2A'],
-        ['Blu', '#2B3A55'],
-        ['Grigio', '#6B6560'],
-        ['Azzurro', '#A9C6D9'],
-        ['Verde Salvia', '#8A9A7B'],
+        ['Nero', 'Black', '#141414'],
+        ['Bianco', 'White', '#FFFFFF'],
+        ['Avorio', 'Ivory', '#F7F3EC'],
+        ['Nude', 'Nude', '#C4A484'],
+        ['Rosa', 'Pink', '#E8B4B8'],
+        ['Bordeaux', 'Burgundy', '#6B1E2A'],
+        ['Blu', 'Blue', '#2B3A55'],
+        ['Grigio', 'Gray', '#6B6560'],
+        ['Azzurro', 'Light blue', '#A9C6D9'],
+        ['Verde Salvia', 'Sage green', '#8A9A7B'],
     ];
 
     /**
@@ -228,12 +228,14 @@ class ProductSeeder extends Seeder
         $chosenColors = $this->pickColors(random_int(1, 2));
         $chosenSizes = $this->pickSizes($sizes, random_int(2, 3));
 
-        foreach ($chosenColors as [$colorName, $colorHex]) {
+        foreach ($chosenColors as [$colorIt, $colorEn, $colorHex]) {
             foreach ($chosenSizes as $size) {
                 ProductVariant::create([
                     'product_id' => $product->id,
                     'size' => $size,
-                    'color' => $colorName,
+                    'color' => $colorIt,
+                    'color_it' => $colorIt,
+                    'color_en' => $colorEn,
                     'color_hex' => $colorHex,
                     'price' => $price,
                     'compare_at_price' => $compareAt,
@@ -261,7 +263,7 @@ class ProductSeeder extends Seeder
     }
 
     /**
-     * @return list<array{string, string}>
+     * @return list<array{string, string, string}>
      */
     private function pickColors(int $count): array
     {

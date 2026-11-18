@@ -139,14 +139,20 @@ class ProductController extends Controller
                 'description' => $request->input("description.$loc"),
                 'care_notes' => $request->input("care_notes.$loc"),
                 'fit_notes' => $request->input("fit_notes.$loc"),
+                'season' => $request->input("season.$loc"),
+                'warranty' => $request->input("warranty.$loc"),
             ]);
         }
 
         foreach ($request->validated('variants') as $variantData) {
+            $colorIt = $variantData['color_it'] ?? null;
+            $colorEn = $variantData['color_en'] ?? null;
             ProductVariant::create([
                 'product_id' => $product->id,
                 'size' => $variantData['size'] ?? null,
-                'color' => $variantData['color'] ?? null,
+                'color' => $colorIt,
+                'color_it' => $colorIt,
+                'color_en' => $colorEn,
                 'color_hex' => $this->normalizeHexColor($variantData['color_hex'] ?? null),
                 'price' => $variantData['price'],
                 'compare_at_price' => $variantData['compare_at_price'] ?? null,
@@ -168,9 +174,11 @@ class ProductController extends Controller
                 }
 
                 if ($imagePath) {
+                    $colorKey = trim((string) ($imageData['color_key'] ?? ''));
                     ProductImage::create([
                         'product_id' => $product->id,
                         'path' => $imagePath,
+                        'color_key' => $colorKey !== '' ? $colorKey : null,
                         'is_primary' => $imageData['is_primary'] ?? ($index === 0),
                         'position' => $imageData['position'] ?? $index,
                     ]);
@@ -312,6 +320,8 @@ class ProductController extends Controller
                     'description' => $request->input("description.$loc"),
                     'care_notes' => $request->input("care_notes.$loc"),
                     'fit_notes' => $request->input("fit_notes.$loc"),
+                    'season' => $request->input("season.$loc"),
+                    'warranty' => $request->input("warranty.$loc"),
                 ],
             );
         }
@@ -330,10 +340,14 @@ class ProductController extends Controller
         $product->variants()->delete();
 
         foreach ($request->validated('variants') as $variantData) {
+            $colorIt = $variantData['color_it'] ?? null;
+            $colorEn = $variantData['color_en'] ?? null;
             ProductVariant::create([
                 'product_id' => $product->id,
                 'size' => $variantData['size'] ?? null,
-                'color' => $variantData['color'] ?? null,
+                'color' => $colorIt,
+                'color_it' => $colorIt,
+                'color_en' => $colorEn,
                 'color_hex' => $this->normalizeHexColor($variantData['color_hex'] ?? null),
                 'price' => $variantData['price'],
                 'compare_at_price' => $variantData['compare_at_price'] ?? null,
@@ -369,10 +383,13 @@ class ProductController extends Controller
                 }
 
                 if ($imagePath) {
+                    $colorKey = trim((string) ($imageData['color_key'] ?? ''));
+                    $colorKey = $colorKey !== '' ? $colorKey : null;
                     if (isset($imageData['id']) && $imageData['id']) {
                         ProductImage::where('id', $imageData['id'])
                             ->update([
                                 'path' => $imagePath,
+                                'color_key' => $colorKey,
                                 'is_primary' => $imageData['is_primary'] ?? false,
                                 'position' => $imageData['position'] ?? $index,
                             ]);
@@ -380,6 +397,7 @@ class ProductController extends Controller
                         ProductImage::create([
                             'product_id' => $product->id,
                             'path' => $imagePath,
+                            'color_key' => $colorKey,
                             'is_primary' => $imageData['is_primary'] ?? ($index === 0),
                             'position' => $imageData['position'] ?? $index,
                         ]);

@@ -110,12 +110,15 @@ class MerchandisingSectionResolver
      */
     private function hasActiveRules(array $rules): bool
     {
-        $brandIds = array_filter(array_map('intval', $rules['brand_ids'] ?? []));
-        $categoryIds = array_filter(array_map('intval', $rules['category_ids'] ?? []));
-        $onSale = array_key_exists('on_sale', $rules) && $rules['on_sale'] !== null && $rules['on_sale'] !== '';
-        $inStock = array_key_exists('in_stock', $rules) && $rules['in_stock'] !== null && $rules['in_stock'] !== '';
+        $brandIds = array_values(array_filter(array_map('intval', $rules['brand_ids'] ?? [])));
+        $categoryIds = array_values(array_filter(array_map('intval', $rules['category_ids'] ?? [])));
+        // Only treat on_sale as active when it is truthy (false must not enable auto-fill).
+        $onSale = ! empty($rules['on_sale']);
+        $inStockSet = array_key_exists('in_stock', $rules)
+            && $rules['in_stock'] !== null
+            && $rules['in_stock'] !== '';
 
-        return $brandIds !== [] || $categoryIds !== [] || $onSale || $inStock;
+        return $brandIds !== [] || $categoryIds !== [] || $onSale || $inStockSet;
     }
 
     /**

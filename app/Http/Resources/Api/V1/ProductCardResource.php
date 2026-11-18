@@ -30,13 +30,13 @@ class ProductCardResource extends JsonResource
         }
 
         $colors = $variants
-            ->filter(fn ($v) => filled($v->color))
-            ->unique(fn ($v) => mb_strtolower((string) $v->color).'|'.(string) $v->color_hex)
-            ->values()
             ->map(fn ($v) => [
-                'name' => (string) $v->color,
+                'name' => $v->colorForLocale($locale),
                 'hex' => $v->color_hex,
-            ]);
+            ])
+            ->filter(fn ($c) => filled($c['name']))
+            ->unique(fn ($c) => mb_strtolower((string) $c['name']).'|'.(string) $c['hex'])
+            ->values();
 
         $primary = null;
         $secondary = null;

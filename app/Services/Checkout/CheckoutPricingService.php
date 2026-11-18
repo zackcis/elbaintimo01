@@ -132,7 +132,7 @@ final class CheckoutPricingService
                 'product_name' => $product->titleForLocale($locale),
                 'product_slug' => $product->slugForLocale($locale),
                 'size' => $variant->size,
-                'color' => $variant->color,
+                'color' => $variant->colorForLocale($locale),
                 'color_hex' => $variant->color_hex,
                 'quantity' => $qty,
                 'unit_price' => number_format($unit, 2, '.', ''),

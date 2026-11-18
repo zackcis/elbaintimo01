@@ -127,7 +127,8 @@ class ProductDiscountAdminTest extends TestCase
     {
         $row = [
             'size' => 'M',
-            'color' => 'Nero',
+            'color_it' => 'Nero',
+            'color_en' => 'Black',
             'color_hex' => '#000000',
             'price' => $variant['price'],
             'stock' => 3,

@@ -46,12 +46,114 @@ interface PublishedProduct {
     id: number;
     title: string;
     image_path: string | null;
+    brand_id?: number | null;
+    category_id?: number | null;
+    in_stock?: boolean;
+    on_sale?: boolean;
 }
 
 interface Option {
     id: number;
     name?: string;
     label?: string;
+    parent_id?: number | null;
+}
+
+function expandCategoryIds(selected: number[], categories: Option[]): number[] {
+    const children = new Map<number, number[]>();
+    for (const c of categories) {
+        const parent = c.parent_id ?? 0;
+        const list = children.get(parent) ?? [];
+        list.push(c.id);
+        children.set(parent, list);
+    }
+    const out = new Set<number>();
+    const walk = (id: number) => {
+        if (out.has(id)) {
+            return;
+        }
+        out.add(id);
+        for (const child of children.get(id) ?? []) {
+            walk(child);
+        }
+    };
+    for (const id of selected) {
+        walk(id);
+    }
+    return [...out];
+}
+
+function resolveShelfPreview(
+    section: SectionState,
+    publishedProducts: PublishedProduct[],
+    categories: Option[],
+): PublishedProduct[] {
+    const max = Math.max(1, Number(section.max_items) || 12);
+    const excludeIds = new Set(
+        section.pins.filter((p) => p.mode === 'exclude').map((p) => p.product_id),
+    );
+    const includePins = section.pins.filter((p) => p.mode === 'include');
+    const byId = new Map(publishedProducts.map((p) => [p.id, p]));
+
+    const ordered: PublishedProduct[] = [];
+    const seen = new Set<number>();
+    for (const pin of includePins) {
+        if (excludeIds.has(pin.product_id) || seen.has(pin.product_id)) {
+            continue;
+        }
+        const product = byId.get(pin.product_id);
+        if (!product) {
+            continue;
+        }
+        ordered.push(product);
+        seen.add(pin.product_id);
+        if (ordered.length >= max) {
+            return ordered;
+        }
+    }
+
+    const brandIds = section.rules.brand_ids.map(Number).filter(Boolean);
+    const categoryIds = expandCategoryIds(
+        section.rules.category_ids.map(Number).filter(Boolean),
+        categories,
+    );
+    const hasRules =
+        brandIds.length > 0 ||
+        categoryIds.length > 0 ||
+        section.rules.on_sale ||
+        section.rules.in_stock === true;
+
+    if (!hasRules) {
+        return ordered;
+    }
+
+    const matches = publishedProducts.filter((p) => {
+        if (seen.has(p.id) || excludeIds.has(p.id)) {
+            return false;
+        }
+        if (brandIds.length > 0 && !brandIds.includes(Number(p.brand_id))) {
+            return false;
+        }
+        if (categoryIds.length > 0 && !categoryIds.includes(Number(p.category_id))) {
+            return false;
+        }
+        if (section.rules.on_sale && !p.on_sale) {
+            return false;
+        }
+        if (section.rules.in_stock === true && !p.in_stock) {
+            return false;
+        }
+        return true;
+    });
+
+    for (const product of matches) {
+        ordered.push(product);
+        if (ordered.length >= max) {
+            break;
+        }
+    }
+
+    return ordered;
 }
 
 interface MerchandisingPageProps {
@@ -216,9 +318,9 @@ export default function MerchandisingIndex({
                     return s;
                 }
                 const list = s.rules[field];
-                const next = list.includes(id)
-                    ? list.filter((x) => x !== id)
-                    : [...list, id];
+                const next = list.some((x) => Number(x) === Number(id))
+                    ? list.filter((x) => Number(x) !== Number(id))
+                    : [...list, Number(id)];
                 return { ...s, rules: { ...s.rules, [field]: next } };
             }),
         );
@@ -317,6 +419,11 @@ export default function MerchandisingIndex({
                     {sections.map((section) => {
                         const pinnedIds = new Set(section.pins.map((p) => p.product_id));
                         const available = publishedProducts.filter((p) => !pinnedIds.has(p.id));
+                        const preview = resolveShelfPreview(
+                            section,
+                            publishedProducts,
+                            categories,
+                        );
 
                         return (
                             <Card key={section.slug} className="border-border/80 shadow-sm">
@@ -409,7 +516,13 @@ export default function MerchandisingIndex({
 
                                 <CardContent className="space-y-5">
                                     <div className="space-y-3 rounded-lg border border-border/70 p-3">
-                                        <p className="text-sm font-semibold">Rules (auto-fill)</p>
+                                        <div>
+                                            <p className="text-sm font-semibold">Rules (auto-fill)</p>
+                                            <p className="text-xs text-muted-foreground">
+                                                Match published products automatically after manual
+                                                includes. Click Salva to publish.
+                                            </p>
+                                        </div>
                                         <div className="grid gap-3 md:grid-cols-2">
                                             <div>
                                                 <Label className="text-xs text-muted-foreground">
@@ -423,8 +536,8 @@ export default function MerchandisingIndex({
                                                         >
                                                             <input
                                                                 type="checkbox"
-                                                                checked={section.rules.brand_ids.includes(
-                                                                    b.id,
+                                                                checked={section.rules.brand_ids.some(
+                                                                    (id) => Number(id) === Number(b.id),
                                                                 )}
                                                                 onChange={() =>
                                                                     toggleMulti(
@@ -451,8 +564,8 @@ export default function MerchandisingIndex({
                                                         >
                                                             <input
                                                                 type="checkbox"
-                                                                checked={section.rules.category_ids.includes(
-                                                                    c.id,
+                                                                checked={section.rules.category_ids.some(
+                                                                    (id) => Number(id) === Number(c.id),
                                                                 )}
                                                                 onChange={() =>
                                                                     toggleMulti(
@@ -498,6 +611,62 @@ export default function MerchandisingIndex({
                                         </div>
                                     </div>
 
+                                    <div className="space-y-2">
+                                        <div>
+                                            <p className="text-sm font-semibold">
+                                                Shelf preview ({preview.length}/{section.max_items})
+                                            </p>
+                                            <p className="text-xs text-muted-foreground">
+                                                What the storefront will show after Salva — includes
+                                                first, then rules, minus excludes.
+                                            </p>
+                                        </div>
+                                        <ul className="divide-y divide-border/70 rounded-lg border border-dashed border-border/70 bg-beige/40">
+                                            {preview.length === 0 ? (
+                                                <li className="px-4 py-4 text-center text-sm text-muted-foreground">
+                                                    No products match pins + rules yet.
+                                                </li>
+                                            ) : (
+                                                preview.map((product, index) => (
+                                                    <li
+                                                        key={`preview-${section.slug}-${product.id}`}
+                                                        className="flex items-center gap-3 px-3 py-2"
+                                                    >
+                                                        <div className="h-10 w-10 shrink-0 overflow-hidden rounded-md bg-beige">
+                                                            {product.image_path ? (
+                                                                <img
+                                                                    src={`/storage/${product.image_path}`}
+                                                                    alt=""
+                                                                    className="h-full w-full object-cover"
+                                                                />
+                                                            ) : null}
+                                                        </div>
+                                                        <div className="min-w-0 flex-1">
+                                                            <p className="truncate text-sm font-medium">
+                                                                {product.title}
+                                                            </p>
+                                                            <p className="text-xs text-muted-foreground">
+                                                                #{index + 1}
+                                                                {section.pins.some(
+                                                                    (p) =>
+                                                                        p.product_id === product.id &&
+                                                                        p.mode === 'include',
+                                                                )
+                                                                    ? ' · pinned'
+                                                                    : ' · auto-fill'}
+                                                            </p>
+                                                        </div>
+                                                    </li>
+                                                ))
+                                            )}
+                                        </ul>
+                                    </div>
+
+                                    <div>
+                                        <p className="mb-2 text-sm font-semibold">Manual pins</p>
+                                        <p className="mb-2 text-xs text-muted-foreground">
+                                            Include forces a product in; Exclude blocks it from rules.
+                                        </p>
                                     <ul className="divide-y divide-border/70 rounded-lg border border-border/70">
                                         {section.pins.length === 0 && (
                                             <li className="px-4 py-6 text-center text-sm text-muted-foreground">
@@ -656,6 +825,7 @@ export default function MerchandisingIndex({
                                             <Plus className="mr-1 h-4 w-4" />
                                             {t('common.add')}
                                         </Button>
+                                    </div>
                                     </div>
                                 </CardContent>
                             </Card>

@@ -36,7 +36,8 @@ export function validateProductBasics(formData: FormData, mode: BrandMode): Reco
 
 export interface VariantFormRow {
     size: string;
-    color: string;
+    color_it: string;
+    color_en: string;
     color_hex: string;
     price: string;
     compare_at_price?: string;
@@ -44,7 +45,7 @@ export interface VariantFormRow {
 }
 
 /**
- * Client-side checks for variant rows (keys match Laravel: variants.0.color, etc.).
+ * Client-side checks for variant rows (keys match Laravel: variants.0.color_it, etc.).
  */
 export function validateVariantRows(variantRows: VariantFormRow[]): Record<string, string> {
     const out: Record<string, string> = {};
@@ -54,9 +55,13 @@ export function validateVariantRows(variantRows: VariantFormRow[]): Record<strin
     }
 
     variantRows.forEach((v, i) => {
-        const colorName = String(v.color ?? '').trim();
-        if (!colorName) {
-            out[`variants.${i}.color`] = 'Color name is required for every variant (e.g. Black, Burgundy).';
+        const colorIt = String(v.color_it ?? '').trim();
+        if (!colorIt) {
+            out[`variants.${i}.color_it`] = 'Italian color name is required (e.g. Rosso, Nero).';
+        }
+        const colorEn = String(v.color_en ?? '').trim();
+        if (!colorEn) {
+            out[`variants.${i}.color_en`] = 'English color name is required (e.g. Red, Black).';
         }
 
         const priceRaw = String(v.price ?? '').trim();

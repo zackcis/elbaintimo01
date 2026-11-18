@@ -18,6 +18,8 @@ class ProductTranslation extends Model
         'description',
         'care_notes',
         'fit_notes',
+        'season',
+        'warranty',
     ];
 
     public function product(): BelongsTo

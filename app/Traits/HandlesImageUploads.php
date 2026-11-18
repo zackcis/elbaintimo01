@@ -51,10 +51,17 @@ trait HandlesImageUploads
      */
     protected function validateImage(UploadedFile $file): bool
     {
-        $allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+        $allowedMimes = [
+            'image/jpeg',
+            'image/png',
+            'image/gif',
+            'image/webp',
+            'image/svg+xml',
+            'image/svg',
+        ];
         $maxSize = 5 * 1024 * 1024; // 5MB
 
-        return in_array($file->getMimeType(), $allowedMimes)
+        return in_array($file->getMimeType(), $allowedMimes, true)
             && $file->getSize() <= $maxSize;
     }
 }

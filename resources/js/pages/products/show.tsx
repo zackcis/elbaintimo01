@@ -50,10 +50,21 @@ interface ProductVariant {
     id: number;
     size: string | null;
     color: string | null;
+    color_it?: string | null;
+    color_en?: string | null;
     color_hex: string | null;
     price: string;
     compare_at_price?: string | null;
     stock: number;
+}
+
+function variantColorLabel(variant: ProductVariant): string {
+    const it = (variant.color_it || variant.color || '').trim();
+    const en = (variant.color_en || '').trim();
+    if (it && en && it.toLowerCase() !== en.toLowerCase()) {
+        return `${it} / ${en}`;
+    }
+    return it || en || (variant.color_hex || '').trim();
 }
 
 interface Product {
@@ -175,7 +186,7 @@ export default function ProductsShow({ product, relatedProducts }: ProductsShowP
         new Map(
             product.variants
                 .map((variant) => {
-                    const label = (variant.color ?? variant.color_hex ?? '').trim();
+                    const label = variantColorLabel(variant);
                     if (label === '') {
                         return null;
                     }
@@ -184,7 +195,7 @@ export default function ProductsShow({ product, relatedProducts }: ProductsShowP
                         label,
                         {
                             label,
-                            hex: variant.color_hex || getColorHex(variant.color),
+                            hex: variant.color_hex || getColorHex(variant.color_it || variant.color),
                         },
                     ] as const;
                 })
@@ -195,7 +206,7 @@ export default function ProductsShow({ product, relatedProducts }: ProductsShowP
     // Get filtered variants based on selection
     const filteredVariants = product.variants.filter(v => {
         if (selectedSize && v.size !== selectedSize) return false;
-        if (selectedColor && (v.color ?? v.color_hex ?? null) !== selectedColor) return false;
+        if (selectedColor && variantColorLabel(v) !== selectedColor) return false;
         return true;
     });
 
@@ -726,14 +737,18 @@ export default function ProductsShow({ product, relatedProducts }: ProductsShowP
                                                                 {variant.size}
                                                             </Badge>
                                                         )}
-                                                        {variant.color && (
+                                                        {variantColorLabel(variant) && (
                                                             <div className="flex items-center gap-2">
                                                                 <div
                                                                     className="w-4 h-4 rounded-full border border-border"
-                                                                    style={{ backgroundColor: getColorHex(variant.color) }}
+                                                                    style={{
+                                                                        backgroundColor: getColorHex(
+                                                                            variant.color_it || variant.color,
+                                                                        ),
+                                                                    }}
                                                                 />
                                                                 <span className="min-w-0 max-w-full text-xs text-gray-600 font-sans [overflow-wrap:anywhere] [word-break:break-word]">
-                                                                    {variant.color}
+                                                                    {variantColorLabel(variant)}
                                                                 </span>
                                                             </div>
                                                         )}

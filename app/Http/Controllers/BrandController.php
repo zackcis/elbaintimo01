@@ -157,7 +157,7 @@ class BrandController extends Controller
     public function updateLogo(Request $request, string $locale, Brand $brand): RedirectResponse
     {
         $request->validate([
-            'logo' => ['required', 'image', 'mimes:jpeg,png,jpg,gif,webp', 'max:5120'],
+            'logo' => ['required', 'file', 'mimes:png,svg,jpeg,jpg,webp,gif', 'max:5120'],
         ]);
 
         if ($brand->logo) {

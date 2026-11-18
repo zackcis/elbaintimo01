@@ -103,6 +103,16 @@ class Product extends Model
         return $this->translationFor($locale)?->fit_notes;
     }
 
+    public function seasonForLocale(string $locale): ?string
+    {
+        return $this->translationFor($locale)?->season;
+    }
+
+    public function warrantyForLocale(string $locale): ?string
+    {
+        return $this->translationFor($locale)?->warranty;
+    }
+
     public function translationFor(string $locale): ?ProductTranslation
     {
         $translations = $this->relationLoaded('translations')

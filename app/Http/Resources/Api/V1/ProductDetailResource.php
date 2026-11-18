@@ -43,6 +43,8 @@ class ProductDetailResource extends JsonResource
             'fabric' => $this->tissu,
             'care_notes' => $this->careNotesForLocale($locale),
             'fit_notes' => $this->fitNotesForLocale($locale),
+            'season' => $this->seasonForLocale($locale),
+            'warranty' => $this->warrantyForLocale($locale),
             'complete_the_look' => $this->whenLoaded('relatedProducts', function () {
                 return ProductCardResource::collection(
                     $this->relatedProducts->filter(fn (Product $p) => (bool) $p->is_published)->values()
@@ -74,22 +76,42 @@ class ProductDetailResource extends JsonResource
                     'path' => $categoryPath,
                 ];
             }),
-            'images' => $this->whenLoaded('images', function () {
+            'images' => $this->whenLoaded('images', function () use ($locale) {
+                $variants = $this->relationLoaded('variants') ? $this->variants : collect();
+
                 return $this->images
                     ->sortBy('position')
                     ->values()
-                    ->map(fn ($image) => [
-                        'url' => MediaUrl::fromPath($image->path),
-                        'is_primary' => (bool) $image->is_primary,
-                        'position' => (int) $image->position,
-                    ]);
+                    ->map(function ($image) use ($locale, $variants) {
+                        $colorKey = filled($image->color_key) ? (string) $image->color_key : null;
+                        $localizedColor = null;
+                        if ($colorKey !== null) {
+                            $match = $variants->first(function ($variant) use ($colorKey) {
+                                $key = $variant->color_it ?: $variant->color;
+
+                                return filled($key) && mb_strtolower((string) $key) === mb_strtolower($colorKey);
+                            });
+                            $localizedColor = $match?->colorForLocale($locale) ?? $colorKey;
+                        }
+
+                        return [
+                            'url' => MediaUrl::fromPath($image->path),
+                            'color_key' => $colorKey,
+                            'color' => $localizedColor,
+                            'is_primary' => (bool) $image->is_primary,
+                            'position' => (int) $image->position,
+                        ];
+                    });
             }),
-            'variants' => $this->whenLoaded('variants', function () {
+            'variants' => $this->whenLoaded('variants', function () use ($locale) {
                 return $this->variants->map(fn ($variant) => [
                     'id' => $variant->id,
                     'sku' => null,
                     'size' => $variant->size,
-                    'color' => $variant->color,
+                    'color' => $variant->colorForLocale($locale),
+                    'color_key' => filled($variant->color_it)
+                        ? (string) $variant->color_it
+                        : (filled($variant->color) ? (string) $variant->color : null),
                     'color_hex' => $variant->color_hex,
                     'price' => number_format((float) $variant->price, 2, '.', ''),
                     'compare_at_price' => $variant->compare_at_price !== null

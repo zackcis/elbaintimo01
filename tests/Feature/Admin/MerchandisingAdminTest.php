@@ -138,7 +138,8 @@ class MerchandisingAdminTest extends TestCase
             'variants' => [
                 [
                     'size' => 'M',
-                    'color' => 'Nero',
+                    'color_it' => 'Nero',
+                    'color_en' => 'Black',
                     'color_hex' => '#000000',
                     'price' => 10,
                     'stock' => 1,

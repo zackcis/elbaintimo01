@@ -38,7 +38,8 @@ interface ProductFormProps {
 
 interface Variant {
     size: string;
-    color: string;
+    color_it: string;
+    color_en: string;
     color_hex: string;
     price: string;
     compare_at_price: string;
@@ -50,6 +51,7 @@ interface Image {
     file?: File | null;
     path?: string;
     preview?: string;
+    color_key?: string | null;
     is_primary: boolean;
     position: number;
 }
@@ -74,7 +76,7 @@ export default function CreateProduct({ categories, brands }: ProductFormProps) 
     const fieldId = (key: string) => `field-${key.replace(/\./g, '-')}`;
 
     const [variants, setVariants] = useState<Variant[]>([
-        { size: '', color: '', color_hex: '', price: '', compare_at_price: '', stock: '' },
+        { size: '', color_it: '', color_en: '', color_hex: '', price: '', compare_at_price: '', stock: '' },
     ]);
     const [images, setImages] = useState<Image[]>([]);
     const [brandMode, setBrandMode] = useState<BrandMode>('existing');
@@ -89,8 +91,22 @@ export default function CreateProduct({ categories, brands }: ProductFormProps) 
         [t],
     );
 
+    const imageColorOptions = useMemo(() => {
+        const map = new Map<string, string>();
+        for (const v of variants) {
+            const key = v.color_it.trim();
+            if (!key || map.has(key)) continue;
+            const en = v.color_en.trim();
+            map.set(key, en && en.toLowerCase() !== key.toLowerCase() ? `${key} / ${en}` : key);
+        }
+        return [...map.entries()].map(([key, label]) => ({ key, label }));
+    }, [variants]);
+
     const addVariant = () => {
-        setVariants([...variants, { size: '', color: '', color_hex: '', price: '', compare_at_price: '', stock: '' }]);
+        setVariants([
+            ...variants,
+            { size: '', color_it: '', color_en: '', color_hex: '', price: '', compare_at_price: '', stock: '' },
+        ]);
     };
 
     const removeVariant = (index: number) => {
@@ -123,6 +139,14 @@ export default function CreateProduct({ categories, brands }: ProductFormProps) 
         uploadData.append('title[en]', (formData.get('title[en]') as string) || '');
         uploadData.append('description[it]', (formData.get('description[it]') as string) || '');
         uploadData.append('description[en]', (formData.get('description[en]') as string) || '');
+        uploadData.append('care_notes[it]', (formData.get('care_notes[it]') as string) || '');
+        uploadData.append('care_notes[en]', (formData.get('care_notes[en]') as string) || '');
+        uploadData.append('fit_notes[it]', (formData.get('fit_notes[it]') as string) || '');
+        uploadData.append('fit_notes[en]', (formData.get('fit_notes[en]') as string) || '');
+        uploadData.append('season[it]', (formData.get('season[it]') as string) || '');
+        uploadData.append('season[en]', (formData.get('season[en]') as string) || '');
+        uploadData.append('warranty[it]', (formData.get('warranty[it]') as string) || '');
+        uploadData.append('warranty[en]', (formData.get('warranty[en]') as string) || '');
         uploadData.append('category_id', formData.get('category_id') as string);
         const tissuVal = (formData.get('tissu') as string)?.trim();
         if (tissuVal) {
@@ -145,7 +169,8 @@ export default function CreateProduct({ categories, brands }: ProductFormProps) 
         // Add variants
         variants.forEach((v, index) => {
             uploadData.append(`variants[${index}][size]`, v.size || '');
-            uploadData.append(`variants[${index}][color]`, v.color || '');
+            uploadData.append(`variants[${index}][color_it]`, v.color_it || '');
+            uploadData.append(`variants[${index}][color_en]`, v.color_en || '');
             uploadData.append(`variants[${index}][color_hex]`, v.color_hex || '');
             uploadData.append(`variants[${index}][price]`, v.price);
             if (v.compare_at_price.trim() !== '') {
@@ -158,6 +183,9 @@ export default function CreateProduct({ categories, brands }: ProductFormProps) 
         images.forEach((img, index) => {
             if (img.file) {
                 uploadData.append(`images[${index}][file]`, img.file);
+            }
+            if (img.color_key) {
+                uploadData.append(`images[${index}][color_key]`, img.color_key);
             }
             uploadData.append(`images[${index}][is_primary]`, img.is_primary ? '1' : '0');
             uploadData.append(`images[${index}][position]`, img.position.toString());
@@ -349,20 +377,6 @@ export default function CreateProduct({ categories, brands }: ProductFormProps) 
                                 )}
                             </div>
 
-                            <div className="grid gap-2">
-                                <Label htmlFor="tissu" className="font-sans font-semibold">
-                                    Tissu / matière (optionnel)
-                                </Label>
-                                <Input
-                                    id="tissu"
-                                    name="tissu"
-                                    className="border-gray-300"
-                                    placeholder="ex. Coton, Soie, Dentelle…"
-                                    maxLength={255}
-                                />
-                                <InputError message={mergedErrors.tissu} />
-                            </div>
-
                             <div className="grid gap-4 md:grid-cols-2">
                                 <div className="grid gap-2">
                                     <Label htmlFor="description-it" className="font-sans font-semibold">
@@ -389,6 +403,140 @@ export default function CreateProduct({ categories, brands }: ProductFormProps) 
                                         placeholder="Description"
                                     />
                                     <InputError message={mergedErrors['description.en']} />
+                                </div>
+                            </div>
+
+                            <div className="rounded-lg border border-border/70 p-4 space-y-4">
+                                <div>
+                                    <p className="font-serif text-lg font-semibold text-burgundy">
+                                        Dettagli
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">
+                                        Materiale, Vestibilità, Stagione, Lavaggio, Garanzia
+                                    </p>
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="tissu" className="font-sans font-semibold">
+                                        Materiale
+                                    </Label>
+                                    <Input
+                                        id="tissu"
+                                        name="tissu"
+                                        className="border-gray-300"
+                                        placeholder="es. Caldo cotone"
+                                        maxLength={255}
+                                    />
+                                    <InputError message={mergedErrors.tissu} />
+                                </div>
+                                <div className="grid gap-4 md:grid-cols-2">
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="fit-notes-it" className="font-sans font-semibold">
+                                            Vestibilità (IT)
+                                        </Label>
+                                        <Input
+                                            id="fit-notes-it"
+                                            name="fit_notes[it]"
+                                            className="border-gray-300"
+                                            placeholder="es. Regular"
+                                        />
+                                        <InputError message={mergedErrors['fit_notes.it']} />
+                                    </div>
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="fit-notes-en" className="font-sans font-semibold">
+                                            Fit (EN)
+                                        </Label>
+                                        <Input
+                                            id="fit-notes-en"
+                                            name="fit_notes[en]"
+                                            className="border-gray-300"
+                                            placeholder="e.g. Regular"
+                                        />
+                                        <InputError message={mergedErrors['fit_notes.en']} />
+                                    </div>
+                                </div>
+                                <div className="grid gap-4 md:grid-cols-2">
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="season-it" className="font-sans font-semibold">
+                                            Stagione (IT)
+                                        </Label>
+                                        <Input
+                                            id="season-it"
+                                            name="season[it]"
+                                            className="border-gray-300"
+                                            placeholder="es. Autunno-Inverno"
+                                            maxLength={255}
+                                        />
+                                        <InputError message={mergedErrors['season.it']} />
+                                    </div>
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="season-en" className="font-sans font-semibold">
+                                            Season (EN)
+                                        </Label>
+                                        <Input
+                                            id="season-en"
+                                            name="season[en]"
+                                            className="border-gray-300"
+                                            placeholder="e.g. Autumn-Winter"
+                                            maxLength={255}
+                                        />
+                                        <InputError message={mergedErrors['season.en']} />
+                                    </div>
+                                </div>
+                                <div className="grid gap-4 md:grid-cols-2">
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="care-notes-it" className="font-sans font-semibold">
+                                            Lavaggio (IT)
+                                        </Label>
+                                        <Textarea
+                                            id="care-notes-it"
+                                            name="care_notes[it]"
+                                            rows={2}
+                                            className="border-gray-300"
+                                            placeholder="seguire le istruzioni riportate sul prodotto"
+                                        />
+                                        <InputError message={mergedErrors['care_notes.it']} />
+                                    </div>
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="care-notes-en" className="font-sans font-semibold">
+                                            Washing (EN)
+                                        </Label>
+                                        <Textarea
+                                            id="care-notes-en"
+                                            name="care_notes[en]"
+                                            rows={2}
+                                            className="border-gray-300"
+                                            placeholder="follow the care instructions on the product"
+                                        />
+                                        <InputError message={mergedErrors['care_notes.en']} />
+                                    </div>
+                                </div>
+                                <div className="grid gap-4 md:grid-cols-2">
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="warranty-it" className="font-sans font-semibold">
+                                            Garanzia (IT)
+                                        </Label>
+                                        <Textarea
+                                            id="warranty-it"
+                                            name="warranty[it]"
+                                            rows={2}
+                                            className="border-gray-300"
+                                            placeholder="prodotto originale, garantito dal marchio"
+                                        />
+                                        <InputError message={mergedErrors['warranty.it']} />
+                                    </div>
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="warranty-en" className="font-sans font-semibold">
+                                            Warranty (EN)
+                                        </Label>
+                                        <Textarea
+                                            id="warranty-en"
+                                            name="warranty[en]"
+                                            rows={2}
+                                            className="border-gray-300"
+                                            placeholder="original product, brand guaranteed"
+                                        />
+                                        <InputError message={mergedErrors['warranty.en']} />
+                                    </div>
                                 </div>
                             </div>
                         </CardContent>
@@ -451,28 +599,51 @@ export default function CreateProduct({ categories, brands }: ProductFormProps) 
                                                 className="border-gray-300"
                                             />
                                         </div>
-                                        <div className="grid gap-2" id={fieldId(`variants.${index}.color`)}>
+                                        <div className="grid gap-2" id={fieldId(`variants.${index}.color_it`)}>
                                             <Label className="text-xs font-sans uppercase tracking-wide text-gray-600">
-                                                Color *
+                                                Color (IT) *
                                             </Label>
                                             <Input
-                                                value={variant.color}
+                                                value={variant.color_it}
                                                 onChange={(e) =>
                                                     updateVariant(
                                                         index,
-                                                        'color',
+                                                        'color_it',
                                                         e.target.value,
                                                     )
                                                 }
-                                                placeholder="e.g., Black, Red"
+                                                placeholder="es. Rosso, Nero"
                                                 className={
-                                                    mergedErrors[`variants.${index}.color`]
+                                                    mergedErrors[`variants.${index}.color_it`]
                                                         ? 'border-destructive focus-visible:ring-destructive/30'
                                                         : 'border-gray-300'
                                                 }
-                                                aria-invalid={Boolean(mergedErrors[`variants.${index}.color`])}
+                                                aria-invalid={Boolean(mergedErrors[`variants.${index}.color_it`])}
                                             />
-                                            <InputError message={mergedErrors[`variants.${index}.color`]} />
+                                            <InputError message={mergedErrors[`variants.${index}.color_it`]} />
+                                        </div>
+                                        <div className="grid gap-2" id={fieldId(`variants.${index}.color_en`)}>
+                                            <Label className="text-xs font-sans uppercase tracking-wide text-gray-600">
+                                                Color (EN) *
+                                            </Label>
+                                            <Input
+                                                value={variant.color_en}
+                                                onChange={(e) =>
+                                                    updateVariant(
+                                                        index,
+                                                        'color_en',
+                                                        e.target.value,
+                                                    )
+                                                }
+                                                placeholder="e.g. Red, Black"
+                                                className={
+                                                    mergedErrors[`variants.${index}.color_en`]
+                                                        ? 'border-destructive focus-visible:ring-destructive/30'
+                                                        : 'border-gray-300'
+                                                }
+                                                aria-invalid={Boolean(mergedErrors[`variants.${index}.color_en`])}
+                                            />
+                                            <InputError message={mergedErrors[`variants.${index}.color_en`]} />
                                         </div>
                                         <div className="grid gap-2" id={fieldId(`variants.${index}.color_hex`)}>
                                             <Label className="text-xs font-sans uppercase tracking-wide text-gray-600">
@@ -610,6 +781,7 @@ export default function CreateProduct({ categories, brands }: ProductFormProps) 
                                 images={images}
                                 onChange={(next) => setImages(next as Image[])}
                                 maxImages={10}
+                                colorOptions={imageColorOptions}
                             />
                         </CardContent>
                     </Card>
