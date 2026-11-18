@@ -585,11 +585,16 @@ export default function ProductsShow({ product, relatedProducts }: ProductsShowP
                                     <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
                                         {ts('products.show.description')}
                                     </p>
-                                    <div
-                                        className="max-w-full text-[15px] leading-relaxed text-gray-700 font-sans whitespace-pre-wrap [overflow-wrap:anywhere] [word-break:break-word] hyphens-auto"
-                                    >
-                                        {product.description}
-                                    </div>
+                                    {/<(p|br|strong|b|em|i|mark)\b/i.test(product.description) ? (
+                                        <div
+                                            className="max-w-full text-[15px] leading-relaxed text-gray-700 font-sans [overflow-wrap:anywhere] [word-break:break-word] hyphens-auto [&_p]:my-1 [&_mark]:rounded-sm [&_mark]:bg-amber-200 [&_mark]:px-0.5"
+                                            dangerouslySetInnerHTML={{ __html: product.description }}
+                                        />
+                                    ) : (
+                                        <div className="max-w-full text-[15px] leading-relaxed text-gray-700 font-sans whitespace-pre-wrap [overflow-wrap:anywhere] [word-break:break-word] hyphens-auto">
+                                            {product.description}
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>

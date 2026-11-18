@@ -9,6 +9,7 @@ use App\Models\Category;
 use App\Models\Product;
 use App\Models\ProductImage;
 use App\Models\ProductVariant;
+use App\Support\SafeHtml;
 use App\Traits\HandlesImageUploads;
 use App\Traits\LogsActivity;
 use Illuminate\Http\RedirectResponse;
@@ -136,7 +137,11 @@ class ProductController extends Controller
                 'locale' => $loc,
                 'slug' => \App\Support\UniqueSlug::make($title, 'product_translations', $loc),
                 'title' => $title,
-                'description' => $request->input("description.$loc"),
+                'description' => SafeHtml::productDescription(
+                    $request->input("description.$loc") !== null
+                        ? (string) $request->input("description.$loc")
+                        : null
+                ),
                 'care_notes' => $request->input("care_notes.$loc"),
                 'fit_notes' => $request->input("fit_notes.$loc"),
                 'season' => $request->input("season.$loc"),
@@ -317,7 +322,11 @@ class ProductController extends Controller
                         $existing?->id,
                     ),
                     'title' => $title,
-                    'description' => $request->input("description.$loc"),
+                    'description' => SafeHtml::productDescription(
+                        $request->input("description.$loc") !== null
+                            ? (string) $request->input("description.$loc")
+                            : null
+                    ),
                     'care_notes' => $request->input("care_notes.$loc"),
                     'fit_notes' => $request->input("fit_notes.$loc"),
                     'season' => $request->input("season.$loc"),

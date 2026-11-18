@@ -18,6 +18,7 @@ import {
 import { Plus, Trash2 } from 'lucide-react';
 import { FormEvent, useMemo, useState } from 'react';
 import { MultipleImageUpload, SingleImageUpload } from '@/components/image-upload';
+import { RichTextEditor } from '@/components/rich-text-editor';
 
 interface Category {
     id: number;
@@ -204,6 +205,9 @@ export default function EditProduct({
 
     const tr = (loc: string) => product.translations?.find((t) => t.locale === loc);
 
+    const [descriptionIt, setDescriptionIt] = useState(tr('it')?.description ?? '');
+    const [descriptionEn, setDescriptionEn] = useState(tr('en')?.description ?? '');
+
     const addVariant = () => {
         setVariants([
             ...variants,
@@ -245,8 +249,8 @@ export default function EditProduct({
         uploadData.append('_method', 'PUT');
         uploadData.append('title[it]', (formData.get('title[it]') as string) || '');
         uploadData.append('title[en]', (formData.get('title[en]') as string) || '');
-        uploadData.append('description[it]', (formData.get('description[it]') as string) || '');
-        uploadData.append('description[en]', (formData.get('description[en]') as string) || '');
+        uploadData.append('description[it]', descriptionIt);
+        uploadData.append('description[en]', descriptionEn);
         uploadData.append('care_notes[it]', (formData.get('care_notes[it]') as string) || '');
         uploadData.append('care_notes[en]', (formData.get('care_notes[en]') as string) || '');
         uploadData.append('fit_notes[it]', (formData.get('fit_notes[it]') as string) || '');
@@ -511,31 +515,29 @@ export default function EditProduct({
                             </div>
 
                             <div className="grid gap-4 md:grid-cols-2">
-                                <div className="grid gap-2">
+                                <div className="grid gap-2" id={fieldId('description.it')}>
                                     <Label htmlFor="description-it" className="font-sans font-semibold">
                                         Description (IT)
                                     </Label>
-                                    <Textarea
+                                    <RichTextEditor
                                         id="description-it"
-                                        name="description[it]"
-                                        rows={4}
-                                        defaultValue={tr('it')?.description ?? ''}
-                                        className="border-gray-300"
+                                        value={descriptionIt}
+                                        onChange={setDescriptionIt}
                                         placeholder="Descrizione"
+                                        aria-invalid={Boolean(mergedErrors['description.it'])}
                                     />
                                     <InputError message={mergedErrors['description.it']} />
                                 </div>
-                                <div className="grid gap-2">
+                                <div className="grid gap-2" id={fieldId('description.en')}>
                                     <Label htmlFor="description-en" className="font-sans font-semibold">
                                         Description (EN)
                                     </Label>
-                                    <Textarea
+                                    <RichTextEditor
                                         id="description-en"
-                                        name="description[en]"
-                                        rows={4}
-                                        defaultValue={tr('en')?.description ?? ''}
-                                        className="border-gray-300"
+                                        value={descriptionEn}
+                                        onChange={setDescriptionEn}
                                         placeholder="Description"
+                                        aria-invalid={Boolean(mergedErrors['description.en'])}
                                     />
                                     <InputError message={mergedErrors['description.en']} />
                                 </div>

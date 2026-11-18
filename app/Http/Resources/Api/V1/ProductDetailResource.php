@@ -4,6 +4,7 @@ namespace App\Http\Resources\Api\V1;
 
 use App\Models\Product;
 use App\Support\MediaUrl;
+use App\Support\SafeHtml;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -39,7 +40,7 @@ class ProductDetailResource extends JsonResource
             'id' => $this->id,
             'slug' => $this->slugForLocale($locale),
             'title' => $this->titleForLocale($locale),
-            'description' => $this->descriptionForLocale($locale),
+            'description' => SafeHtml::productDescription($this->descriptionForLocale($locale)),
             'fabric' => $this->tissu,
             'care_notes' => $this->careNotesForLocale($locale),
             'fit_notes' => $this->fitNotesForLocale($locale),
